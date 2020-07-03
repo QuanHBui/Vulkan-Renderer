@@ -1,0 +1,14 @@
+# Build folders
+*build/
+out/
+x64/
+
+# IDE/Text editor settings
+.vs/
+.vscode/
+
+# Mac system files
+.DS_Store
+
+# Cmake settings for IDE (Microsoft Visual Studio)
+CMakeSettings.json
