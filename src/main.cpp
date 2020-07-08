@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <map>
 #include <stdexcept>
 #include <vector>
 
@@ -97,7 +98,7 @@ private:
 		for (const char *layerName : validationLayers) {
 			bool layerFound = false;
 
-			for (const auto &layerProperties : availableLayers) {
+			for (const VkLayerProperties &layerProperties : availableLayers) {
 				if (strcmp(layerName, layerProperties.layerName) == 0) {
 					layerFound = true;
 					break;
@@ -236,10 +237,96 @@ private:
 		// }
 	}
 
+	/**
+	 * Check if the graphic card is suitable for the operations we want to perform
+	 */
+	bool isDeviceSuitable(VkPhysicalDevice device)
+	{
+		VkPhysicalDeviceProperties deviceProperties;
+		VkPhysicalDeviceFeatures deviceFeatures;
+
+		// Query basic device properties: name, type, supported Vulkan version
+		vkGetPhysicalDeviceProperties(device, &deviceProperties);
+		// Query supported features
+		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+		// Application needs dedicated GPU that support geometry shaders
+		return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader;
+	}
+
+	/**
+	 * Rate a particular GPU with a certain criteria. This implementation favors heavily dedicated GPU with geometry shader.
+	 * Note that this function is similar to isDeviceSuitable function, but this will return a score instead of a boolean.
+	 */
+	int rateDeviceSuitability(VkPhysicalDevice device)
+	{
+		int score = 0;
+		VkPhysicalDeviceProperties deviceProperties;
+		VkPhysicalDeviceFeatures deviceFeatures;
+
+		// Query basic device properties: name, type, supported Vulkan version
+		vkGetPhysicalDeviceProperties(device, &deviceProperties);
+		// Query supported features
+		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+		// Discrete GPUs have a significant performance advantage
+		if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+			score += 1000;
+		}
+
+		// Maximum possible size of textures affects graphics quality
+		score += deviceProperties.limits.maxImageDimension2D;
+
+		// If application can't function without geometry shader
+		if (!deviceFeatures.geometryShader) {
+			return 0;
+		}
+
+		return score;
+	}
+	/**
+	 * Look for and select a graphic card that supports the features we need. We can select
+	 *  any number of graphic cards and use them simultaneously. This particular implementation
+	 *  looks at all the available devices and scores each of them. The device with the highest score
+	 *  will be picked. This allows for dedicated GPU to be picked if available, and the application
+	 *  will fall back to integrated GPU if necessary.
+	 */
+	void pickPhysicalDevice()
+	{
+		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+
+		uint32_t deviceCount = 0;
+		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+		// If no such graphic card with Vulkan support exists, no point to go further
+		if (deviceCount == 0) {
+			throw std::runtime_error("[ERROR] Failed to find GPUs with Vulkan support!");
+		}
+
+		std::vector<VkPhysicalDevice> devices(deviceCount);
+		vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+
+		// Use an ordered map to automatically sort candidates by increasing score
+		std::multimap<int, VkPhysicalDevice> candidates;
+
+		for (const VkPhysicalDevice &device : devices) {
+			int score = rateDeviceSuitability(device);
+			candidates.insert(std::make_pair(score, device));
+		}
+
+		// Check if the best candidate is suitable at all
+		if (candidates.rbegin()->first > 0) {
+			physicalDevice = candidates.rbegin()->second;
+		} else {
+			throw std::runtime_error("[ERROR] Failed to find a suitable GPU!");
+		}
+	}
+
 	void initVulkan()
 	{
 		createInstance();
 		setupDebugMessenger();
+		pickPhysicalDevice();
 	}
 
 	void mainLoop()
