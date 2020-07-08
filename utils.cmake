@@ -4,7 +4,7 @@ include(CheckIncludeFileCXX)
 function(setBuildProperties target)
 	# Having an extension directory is optional
 	if(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/ext")
-		target_include_directories(${target} PUBLIC "$(PROJECT_SOURCE_DIR)/ext")
+		target_include_directories(${target} PUBLIC "${PROJECT_SOURCE_DIR}/ext")
 	endif()
 
 	linkGLM(${target})
@@ -39,14 +39,14 @@ function(setupVulkan target)
 endfunction(setupVulkan)
 
 # Find and link GLFW3 using find_package or environment variable.
-# Exports variables GLFW_LIBRARIES and GLFW_INCLUDE_DIRS which can be 
-# used for includes and linking. GLFW_INCLUDE_DIRS may be empty, and 
+# Exports variables GLFW_LIBRARIES and GLFW_INCLUDE_DIRS which can be
+# used for includes and linking. GLFW_INCLUDE_DIRS may be empty, and
 # should indicate that the include files are located in a standard include
 # location.
 function(findGLFW3)
 	find_package(glfw3 QUIET)
 	set(GLFW_FROM_SOURCE FALSE CACHE INTERNAL "Indicates that GLFW is being built from a source package")
-	
+
 	if(glfw3_FOUND)
 		if(NOT TARGET glfw)
 			message(FATAL_ERROR "glfw is not a target.")
@@ -66,7 +66,7 @@ function(findGLFW3)
 
 		if(NOT GLFW_LIBRARIES)
 			message(FATAL_ERROR "GLFW_LIBRARIES variable did not get set.")
-		endif()	
+		endif()
 	else()
 		message(FATAL_ERROR "glfw3 could not be found through find_package or environment variable 'GLFW_DIR'! glfw3 must be installed!")
 	endif()
@@ -78,7 +78,7 @@ function(findGLFW3)
 	if (NOT DEFINED GLFW_INCLUDE_DIRS)
 		message(FATAL_ERROR "GLFW_INCLUDE_DIR is not defined.")
 	endif()
-	
+
 	set(GLFW_LIBRARIES ${GLFW_LIBRARIES} CACHE PATH "Path to glfw3 libraries")
 	set(GLFW_INCLUDE_DIRS ${GLFW_INCLUDE_DIRS} CACHE PATH "Path to glfw3 include directory")
 endfunction(findGLFW3)
