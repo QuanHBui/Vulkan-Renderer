@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -56,6 +57,41 @@ void destroyDebugUtilsMessengerEXT(
 	if (func) {
 		func(instance, debugMessenger, pAllocator);
 	}
+}
+
+struct QueueFamilyIndices
+{
+	std::optional<uint32_t> graphicsFamily;
+
+	bool isComplete()
+	{
+		return graphicsFamily.has_value();
+	}
+};
+
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
+{
+	QueueFamilyIndices indices;
+	// Assign index to queue families that could be found
+	uint32_t queueFamilyCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+	// We need to find at least one queue family that supports VK_QUEUE_GRAPHICS_BIT
+	int i = 0;
+	for (const VkQueueFamilyProperties &queueFamily : queueFamilies) {
+		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+			indices.graphicsFamily = i;
+		}
+		// This is rather a peculiar check, this break can just be in the above if check. But we are following the tutorial closely.
+		if (indices.isComplete()) {
+			break;
+		}
+		++i;
+	}
+	return indices;
 }
 
 class HelloTriangleApplication
@@ -238,7 +274,9 @@ private:
 	}
 
 	/**
-	 * Check if the graphic card is suitable for the operations we want to perform
+	 * Check if the graphic card is suitable for the operations we want to perform.
+	 * Specifically, we are checking for graphic card type, geometry shader capability, and
+	 *  queue family availability.
 	 */
 	bool isDeviceSuitable(VkPhysicalDevice device)
 	{
@@ -250,8 +288,12 @@ private:
 		// Query supported features
 		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
-		// Application needs dedicated GPU that support geometry shaders
-		return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader;
+		QueueFamilyIndices indices = findQueueFamilies(device);
+
+		// Application needs dedicated GPU that support geometry shaders with certain queue family
+		return	(deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) &&
+				deviceFeatures.geometryShader &&
+				indices.isComplete();
 	}
 
 	/**
@@ -274,6 +316,12 @@ private:
 			score += 1000;
 		}
 
+		// Make sure to take family queue into account
+		QueueFamilyIndices indices = findQueueFamilies(device);
+		if (indices.isComplete()) {
+			score += 10;
+		}
+
 		// Maximum possible size of textures affects graphics quality
 		score += deviceProperties.limits.maxImageDimension2D;
 
@@ -284,6 +332,7 @@ private:
 
 		return score;
 	}
+	
 	/**
 	 * Look for and select a graphic card that supports the features we need. We can select
 	 *  any number of graphic cards and use them simultaneously. This particular implementation
@@ -331,7 +380,7 @@ private:
 
 	void mainLoop()
 	{
-		while(!glfwWindowShouldClose(window)) {
+		while (!glfwWindowShouldClose(window)) {
 			glfwPollEvents();
 		}
 	}

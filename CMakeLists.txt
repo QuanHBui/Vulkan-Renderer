@@ -3,8 +3,8 @@ include("${CMAKE_SOURCE_DIR}/utils.cmake")
 
 project(VulkanRenderer)
 
-set(CMAKE_CXX_STANDARD_REQUIRED 11)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED 17)
+set(CMAKE_CXX_STANDARD 17)
 
 # For the header and resource files to show up in IDEs
 file(GLOB_RECURSE SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp")
