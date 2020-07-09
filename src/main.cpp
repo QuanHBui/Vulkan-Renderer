@@ -109,6 +109,9 @@ private:
 	GLFWwindow *window;
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debugMessenger;
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+	VkDevice device;
+	VkQueue graphicsQueue;
 
 	void initWindow()
 	{
@@ -332,7 +335,7 @@ private:
 
 		return score;
 	}
-	
+
 	/**
 	 * Look for and select a graphic card that supports the features we need. We can select
 	 *  any number of graphic cards and use them simultaneously. This particular implementation
@@ -342,8 +345,6 @@ private:
 	 */
 	void pickPhysicalDevice()
 	{
-		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-
 		uint32_t deviceCount = 0;
 		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
@@ -371,11 +372,54 @@ private:
 		}
 	}
 
+	void createLogicalDevice()
+	{
+		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+		VkDeviceQueueCreateInfo queueCreateInfo{};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+		queueCreateInfo.queueCount = 1;
+
+		// Assign priorities to queues to influence the scheduling of command buffer execution.
+		// This is required even if there is only a single queue.
+		float queuePriority = 1.0f;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+
+		// Specify the set of device features that we'll be using
+		VkPhysicalDeviceFeatures deviceFeatures{};
+
+		// Create logical device
+		VkDeviceCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		createInfo.pQueueCreateInfos = &queueCreateInfo;
+		createInfo.queueCreateInfoCount = 1;
+		createInfo.pEnabledFeatures = &deviceFeatures;
+		createInfo.enabledExtensionCount = 0;
+
+		// These 2 fields enabledLayerCount and ppEnabledLayerNames are ignored by up-to-date implementation
+		//  of Vulkan, but it's still a good idea to set them for backward compatibility.
+		if (enableValidationLayers) {
+			createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+			createInfo.ppEnabledLayerNames = validationLayers.data();
+		} else {
+			createInfo.enabledLayerCount = 0;
+		}
+
+		if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+			throw std::runtime_error("[ERROR] Failed to create logical device!");
+		}
+
+		// Queues are automatically created along with logical device; we just need to retrieve it.
+		vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+	}
+
 	void initVulkan()
 	{
 		createInstance();
 		setupDebugMessenger();
 		pickPhysicalDevice();
+		createLogicalDevice();
 	}
 
 	void mainLoop()
@@ -387,6 +431,7 @@ private:
 
 	void cleanup()
 	{
+		vkDestroyDevice(device, nullptr);
 		if (enableValidationLayers) {
 			destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 		}
