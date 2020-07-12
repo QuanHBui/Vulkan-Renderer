@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <map>
 #include <optional>
@@ -713,6 +714,85 @@ private:
 		}
 	}
 
+	/**
+	 * Simple helper function to load in the SPIR-V bytecode generated from the shaders
+	 */
+	static std::vector<char> readFile(const std::string &filename)
+	{
+		// We read from the end of the file, indicated by std::ios::ate.
+		std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+		if (!file.is_open()) {
+			throw std::runtime_error("[ERROR] Failed to open file!");
+		}
+
+		// We read from end of file so that we can use the read position to determine the
+		//  size of the file and allocate a buffer.
+		size_t fileSize = (size_t) file.tellg();
+		std::vector<char> buffer(fileSize);
+
+		// Seek back at the beginning of the file and read all of the bytes all of the bytes at once
+		file.seekg(0);
+		file.read(buffer.data(), fileSize);
+
+		file.close();
+
+		return buffer;
+	}
+
+	/**
+	 * SPIR-V bytecode must be wrapped in a VkShaderModule object before being passed to the
+	 *  graphics pipeline.
+	 */
+	VkShaderModule createShaderModule(const std::vector<char> &code)
+	{
+		VkShaderModuleCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		createInfo.codeSize = code.size();
+
+		// Reinterpret cast from char pointer to an uint32_t pointer. Data stored in a std::vector
+		//  default allocator already takes care of data alignment requirements of uint32_t.
+		createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
+
+		VkShaderModule shaderModule;
+		if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+			throw std::runtime_error("[ERROR] Failed to create shader module!");
+		}
+
+		return shaderModule;
+	}
+
+	/**
+	 * The loading and linking of SPIR-V bytecode for execution on the GPU.
+	 * Creates shader modules for vertex shader stage and fragment shader stage, then creates
+	 *  the pipeline shader stages, finally assigns the shader stages to a pipeline stage.
+	 */
+	void createGraphicsPipeline()
+	{
+		std::vector<char> vertShaderCode = readFile("../resources/shaders/vert.spv");
+		std::vector<char> fragShaderCode = readFile("../resources/shaders/frag.spv");
+
+		VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+		VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+		VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertShaderStageInfo.module = vertShaderModule;
+		vertShaderStageInfo.pName = "main";		// Function to invoke in the shader, a.k.a the entrypoint
+
+		VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+		fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragShaderStageInfo.module = fragShaderModule;
+		fragShaderStageInfo.pName = "main";
+
+		VkPipelineShaderStageCreateInfo shaderStage[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+		vkDestroyShaderModule(device, fragShaderModule, nullptr);
+		vkDestroyShaderModule(device, vertShaderModule, nullptr);
+	}
+
 	void initVulkan()
 	{
 		createInstance();
@@ -722,6 +802,7 @@ private:
 		createLogicalDevice();
 		createSwapChain();
 		createImageViews();
+		createGraphicsPipeline();
 	}
 
 	void mainLoop()
