@@ -127,6 +127,7 @@ private:
 	VkExtent2D swapChainExtent;
 	std::vector<VkImageView> swapChainImageViews;
 
+	VkRenderPass renderPass;
 	VkPipelineLayout pipelineLayout;
 
 	void initWindow()
@@ -717,6 +718,44 @@ private:
 	}
 
 	/**
+	 * Render pass object tells Vulkan about the framebuffer attachments for the rendering process.
+	 * Specify how many color and depth buffers will be used, and how many samples to use for each
+	 *  of them and how their contents should be handled over the rendering operations.
+	 */
+	void createRenderPass()
+	{
+		// Have a single color buffer attachment represented by one of the images from the swap chain
+		VkAttachmentDescription colorAttachment{};
+		colorAttachment.format = swapChainImageFormat;
+		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;				// No multiplesampling, only use 1 sample
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;			// Clear the color attachment before drawing new frame
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;			// Rendered contents will be stored in memory to be read later
+		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;		// We don't care what previous layout the image was in
+		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;	// We want the image to be ready for presentation using the swap chain after rendering
+
+		// Every subpass references one or more attachments with VkAttachmentReference struct
+		VkAttachmentReference colorAttachmentRef{};
+		colorAttachmentRef.attachment = 0;	// Directly referenced layout(location = 0) out vec4 outColor directive in the fragment shader
+		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;	// We intend to use attachment as a color buffer
+
+		VkSubpassDescription subpass{};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments = &colorAttachmentRef;
+
+		VkRenderPassCreateInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = 1;
+		renderPassInfo.pAttachments = &colorAttachment;
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &subpass;
+
+		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+			throw std::runtime_error("[ERROR] Failed to create render pass!");
+		}
+	}
+
+	/**
 	 * Simple helper function to load in the SPIR-V bytecode generated from the shaders
 	 */
 	static std::vector<char> readFile(const std::string &filename)
@@ -899,6 +938,7 @@ private:
 		createLogicalDevice();
 		createSwapChain();
 		createImageViews();
+		createRenderPass();
 		createGraphicsPipeline();
 	}
 
@@ -912,6 +952,7 @@ private:
 	void cleanup()
 	{
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyRenderPass(device, renderPass, nullptr);
 
 		for (VkImageView &imageView : swapChainImageViews) {
 			vkDestroyImageView(device, imageView, nullptr);
