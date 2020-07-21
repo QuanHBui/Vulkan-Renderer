@@ -145,15 +145,26 @@ private:
 	std::vector<VkFence> imagesInFlight;				// Keep track which swap chain image the frame in flight is using
 	size_t currentFrame = 0;	// Keeps track of current frame so that we use the correct semaphore objects
 
+	bool framebufferResized = false;
+
 	void initWindow()
 	{
 		glfwInit();
+
 		// Tell GLFW to not create an OpenGL context
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
 		// Disable resizing window because Vulkan needs some special care when doing this
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+
 		// Create the actual window
 		window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+
+		// Store the pointer to current instance of our main application for later use, i.e. window resize callback
+		glfwSetWindowUserPointer(window, this);
+
+		// Set up resize callback
+		glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 	}
 
 	/**
@@ -217,6 +228,24 @@ private:
 	{
 		std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
 		return VK_FALSE;
+	}
+
+	/**
+	 * This function has to be static because GLFW doesn't know how to properly refer to the current
+	 *  instance of our HelloTriangleApplication. A static member function has the benefit of can be used
+	 *  without creating the the class first, i.e. this function can be used without an instance of
+	 *  HelloTriangleApplication.
+	 *
+	 * We do need to let GLFW know what instance of HelloTriangleApplication we are talking about so that we can
+	 *  trigger the resize flag we have in the application. We are going to do so by storing a pointer to said
+	 *  instance with glfwSetWindowUserPointer, which is done in initWindow(). Now to retrieve the pointer, we
+	 *  are going to use glfwGetWindowUserPointer
+	 */
+	static void framebufferResizeCallback(GLFWwindow *window, int width, int height)
+	{
+		// We have to use reinterpret_cast because glfwGetWindowUserPointer returns an arbitrary pointer type, a void * so to speak
+		HelloTriangleApplication *app = reinterpret_cast<HelloTriangleApplication *>(glfwGetWindowUserPointer(window));
+		app->framebufferResized = true;	// Set the resize flag in the case of this callback function got called
 	}
 
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo)
@@ -623,7 +652,13 @@ private:
 		if (capabilities.currentExtent.width != UINT32_MAX) {
 			return capabilities.currentExtent;
 		} else {
-			VkExtent2D actualExtent = {WIDTH, HEIGHT};
+			int width, height;
+			glfwGetFramebufferSize(window, &width, &height);	// Query the actual size of the framebuffer
+
+			VkExtent2D actualExtent = {
+				static_cast<uint32_t>(width),
+				static_cast<uint32_t>(height)
+			};
 
 			actualExtent.width = std::max(	capabilities.minImageExtent.width,
 											std::min(capabilities.maxImageExtent.width, actualExtent.width));
@@ -1103,6 +1138,8 @@ private:
 	 *
 	 * Some sort of concurrency is implemented in this function, i.e. GPU-GPU synchronization is done with 2 semaphores,
 	 *  and CPU-GPU synchronization is done with fences.
+	 * This function now can also detect if the current swap chain is either suboptimal or out-of-date. In the case of
+	 *  the swap chain being out-of-date, the current swap chain will be cleaned up and a new swap chain is created.
 	 */
 	void drawFrame()
 	{
@@ -1111,7 +1148,15 @@ private:
 
 		//============================ (1) Acquire an image from the swap chain =======================
 		uint32_t imageIndex;
-		vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+		VkResult acquireImageResult = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+		// If vkAcquireNextImageKHR indicates that the current swap chain is out-of-date, a new swap chain will be created
+		if (acquireImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
+			recreateSwapChain();
+			return;
+		} else if (acquireImageResult != VK_SUCCESS && acquireImageResult != VK_SUBOPTIMAL_KHR) {
+			throw std::runtime_error("[ERROR] Failed to acquire swap chain image!");
+		}
 
 		// Check if a previous frame is using this image, i.e. there is its fence to wait on
 		if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
@@ -1154,10 +1199,70 @@ private:
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 
-		vkQueuePresentKHR(presentQueue, &presentInfo);
+		VkResult presentImageResult = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+		// This is similar to step (1) with a small difference that even if the swap chain is suboptimal, we still recreate the swap chain because
+		//  we want the best possible result.
+		if (presentImageResult == VK_ERROR_OUT_OF_DATE_KHR || presentImageResult == VK_SUBOPTIMAL_KHR || framebufferResized) {
+			framebufferResized = false;	// Reset the resize flag
+			recreateSwapChain();
+		} else if (presentImageResult != VK_SUCCESS) {
+			throw std::runtime_error("[ERROR] Failed to present swap chain image!");
+		}
 
 		// Advance to next frame. Ensure the frame index loops around the array every MAX_FRAMES_IN_FLIGHT enqueued frames
 		currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+	}
+
+	void cleanupSwapChain()
+	{
+		for (VkFramebuffer &framebuffer : swapChainFramebuffers) {
+			vkDestroyFramebuffer(device, framebuffer, nullptr);
+		}
+
+		vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+
+		vkDestroyPipeline(device, graphicsPipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyRenderPass(device, renderPass, nullptr);
+
+
+		for (VkImageView &imageView : swapChainImageViews) {
+			vkDestroyImageView(device, imageView, nullptr);
+		}
+
+		vkDestroySwapchainKHR(device, swapChain, nullptr);
+	}
+
+	/**
+	 * To handle when the window got resized, at which time the swap chain would be obsolete and incompatible
+	 *  with the new window surface. We must first know when the window size got changed, clean up current swap chain
+	 *  and recreate the swap chain.
+	 *
+	 * In the case of window minimization, the framebuffer size would become 0, we need to handle that as well by
+	 *  pausing the entire program until the window is in the foreground again.
+	 */
+	void recreateSwapChain()
+	{
+		int width = 0, height = 0;
+		glfwGetFramebufferSize(window, &width, &height);
+
+		// Keep calling glfwGetFramebufferSize until the width or height are non-zero
+		while (!width || !height) {
+			glfwGetFramebufferSize(window, &width, &height);
+			glfwWaitEvents();
+		}
+
+		vkDeviceWaitIdle(device);	// Wait to make sure that we don't use resources that may still be in use
+
+		cleanupSwapChain();
+
+		createSwapChain();
+		createImageViews();			// Image views are based directly on the swap chain images
+		createRenderPass();			// Render pass is dependent on the format of swap chain image. However, it's rare that image format would change during window resize
+		createGraphicsPipeline();	// Viewport and scissor rectangle size are specified during graphics pipeline creation
+		createFramebuffers();		// Framebuffers directly depends on swap chain images
+		createCommandBuffers();		// Command buffers also directly depends on swap chain images
 	}
 
 	void initVulkan()
@@ -1190,6 +1295,8 @@ private:
 
 	void cleanup()
 	{
+		cleanupSwapChain();
+
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
 			vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
@@ -1198,19 +1305,6 @@ private:
 
 		vkDestroyCommandPool(device, commandPool, nullptr);
 
-		for (VkFramebuffer framebuffer : swapChainFramebuffers) {
-			vkDestroyFramebuffer(device, framebuffer, nullptr);
-		}
-
-		vkDestroyPipeline(device, graphicsPipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyRenderPass(device, renderPass, nullptr);
-
-		for (VkImageView &imageView : swapChainImageViews) {
-			vkDestroyImageView(device, imageView, nullptr);
-		}
-
-		vkDestroySwapchainKHR(device, swapChain, nullptr);
 		vkDestroyDevice(device, nullptr);
 
 		if (enableValidationLayers) {
