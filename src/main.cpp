@@ -1,12 +1,10 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/vec4.hpp>
-#include <glm/mat4x4.hpp>
+#include <glm/glm.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -100,6 +98,69 @@ struct SwapChainSupportDetails
 	std::vector<VkPresentModeKHR> presentModes;
 };
 
+
+
+struct Vertex
+{
+	glm::vec2 position;
+	glm::vec3 color;
+
+	/**
+	 * A vertex binding specifies the number of bytes between data entries and whether to :
+	 *  (1) move to the next data entry after each vertex OR
+	 *  (2) after each instance
+	 * Since we are not doing instanced rendering, we are going to use (1)
+	 *
+	 * This piece of information is used to describe to the GPU how to read
+	 *  the data per vertex, as opposed to VkVertexInputAttributeDescription
+	 *  below, which is per attribute.
+	 */
+	static VkVertexInputBindingDescription getBindingDescription()
+	{
+		VkVertexInputBindingDescription bindingDescription{};
+		bindingDescription.binding = 0;
+		bindingDescription.stride = sizeof(Vertex);
+		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;	// We are not using instanced rendering so this is going
+																	//  going to per-vertex data
+
+		return bindingDescription;
+	}
+
+	/**
+	 * We have 2 attribute description objects because we have 2 attributes, position and color.
+	 *
+	 * This struct, VkVertexInputAttributeDescription, shows the GPU how to read
+	 *  data per attribute.
+	 */
+	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+	{
+		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+		// Position attibute
+		attributeDescriptions[0].binding = 0;		// Which binding per-vertex data from
+		attributeDescriptions[0].location = 0;		// location directive specified in vertex shader
+		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;		// vec3 format. Vulkan uses the same enumeration as color format for some reason
+		attributeDescriptions[0].offset = offsetof(Vertex, position);
+
+		// Color attribute
+		attributeDescriptions[1].binding = 0;
+		attributeDescriptions[1].location = 1;
+		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+		return attributeDescriptions;
+	}
+};
+
+/**
+ * This is our triangle vertex data
+ */
+const std::vector<Vertex> vertices = {
+	{{ 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{ 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}
+};
+
 class HelloTriangleApplication
 {
 public:
@@ -153,9 +214,6 @@ private:
 
 		// Tell GLFW to not create an OpenGL context
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-		// Disable resizing window because Vulkan needs some special care when doing this
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
 		// Create the actual window
 		window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
@@ -890,13 +948,17 @@ private:
 
 		VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-		// Indicate that no vertex data to load because we hard coded the vertex data directly in the vertex shader
+		// Indicate the vertex data to pass onto the GPU
 		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputInfo.vertexBindingDescriptionCount = 0;
-		vertexInputInfo.pVertexBindingDescriptions = nullptr;
-		vertexInputInfo.vertexAttributeDescriptionCount = 0;
-		vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+
+		VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
+		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = Vertex::getAttributeDescriptions();
+
+		vertexInputInfo.vertexBindingDescriptionCount = 1;
+		vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+		vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+		vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
 		// What kind of geometry will be drawn from the vertices: point, line, line strip, triangle, triangle strip, etc.
 		// Also, no primitive restart
