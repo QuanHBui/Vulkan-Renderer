@@ -20,12 +20,15 @@ private:
 
 public:
 	VulkanBuffer() = default;
-	VulkanBuffer(
+
+	explicit VulkanBuffer(
 		VkDevice,
 		VkPhysicalDevice,
 		VkDeviceSize,
 		VkBufferUsageFlags,
 		VkMemoryPropertyFlags);
+
+	VulkanBuffer(VulkanBuffer const &vulkanBuffer) = delete;
 
 	void cleanUpBuffer();
 

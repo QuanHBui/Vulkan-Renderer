@@ -153,13 +153,19 @@ struct Vertex
 	}
 };
 
-/**
- * This is our triangle vertex data
- */
+// This is our triangle vertex data
 const std::vector<Vertex> vertices = {
-	{{ 0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-	{{ 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
-	{{-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}
+	{{-0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+	{{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
+
+};
+
+// Our triangles are drawn counterclockwise. Hopefully, we are using fewer than
+//  65535 unique vertices; that's why we are using uint16_t for now.
+const std::vector<uint16_t> indices = {
+	0, 1, 2, 2, 3, 0
 };
 
 class HelloTriangleApplication
@@ -210,6 +216,7 @@ private:
 	bool framebufferResized = false;
 
 	std::shared_ptr<VulkanBuffer> mpVertexBuffer = nullptr;
+	std::shared_ptr<VulkanBuffer> mpIndexBuffer = nullptr;
 
 	void initWindow()
 	{
@@ -1116,8 +1123,8 @@ private:
 
 	/**
 	 * Memory transfer between buffers requires command buffers, similarly to drawing commands. Here,
-	 *  we must allocate a temporary command buffer. To optimized, a seperate command pool can be
-	 *  created for these short-lived buffers.
+	 *  we must allocate a temporary command buffer. To optimize, a seperate command pool can be
+	 *  created for these short-lived command buffers.
 	 */
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 	{
@@ -1160,14 +1167,16 @@ private:
 	}
 
 	/**
-	 * This function utilizes a staging buffer to transfer the data from itself to an actual vertex buffer on
+	 * This function utilizes a staging buffer to transfer the data from the CPU to an actual vertex buffer on
 	 *  the GPU. The reason for this because the vertex buffer would be allocated with a memory type that would
 	 *  be optimal for the graphics card to access (with VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT flag); however,
 	 *  this memory type is not accessible by the CPU. The staging buffer does have access to said memory type.
 	 *
 	 * The function is going to first create 2 buffers: a staging buffer and a vertex buffer. Pay attention to the
 	 *  VkMemoryPropertyFlags. The staging buffer uses the GPU memory that is visible to the host (the CPU), whereas
-	 *  the vertex buffer uses the device's dedicated local memory (as mentioned before).
+	 *  the vertex buffer uses the device's dedicated local memory (as mentioned before). Then, the vertex data are
+	 *  copied from the CPU to the staging buffer. Finally, the vertex data are copied from the staging buffer to
+	 *  the vertex buffer.
 	 */
 	void createVertexBuffer()
 	{
@@ -1179,7 +1188,7 @@ private:
 		    slightly compared to explicit flushing. However, this is just a staging buffer
 		    so the performance hit doesn't matter.
 		*/
-		VulkanBuffer stagingBuffer = {
+		VulkanBuffer stagingBuffer{
 			/* VkDevice = */ device,
 			/* VkPhysicalDevice = */ physicalDevice,
 			/* VkDeviceSize = */ bufferSize,
@@ -1199,13 +1208,43 @@ private:
 		void *data;
 		// Map memory to access a region of a specified memory resource with an offset and size
 		vkMapMemory(device, stagingBuffer.getBufferMemory(), 0, bufferSize, 0, &data);
-			memcpy(data, vertices.data(), (size_t) bufferSize);
+		memcpy(data, vertices.data(), (size_t) bufferSize);
 		vkUnmapMemory(device, stagingBuffer.getBufferMemory());
 
-		//======================= Transfer data from staging to vertex buffer =======================
+		//================== Transfer data from staging buffer to vertex buffer ==================
 		copyBuffer(stagingBuffer.getBuffer(), mpVertexBuffer->getBuffer(), bufferSize);
 
 		// Clean up staging buffer
+		stagingBuffer.cleanUpBuffer();
+	}
+
+	void createIndexBuffer()
+	{
+		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+		VulkanBuffer stagingBuffer{
+			device,
+			physicalDevice,
+			bufferSize,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		};
+
+		mpIndexBuffer = std::make_shared<VulkanBuffer>(
+			device,
+			physicalDevice,
+			bufferSize,
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+		);
+
+		void *data;
+		vkMapMemory(device, stagingBuffer.getBufferMemory(), 0, bufferSize, 0, &data);
+		memcpy(data, indices.data(), (size_t) bufferSize);
+		vkUnmapMemory(device, stagingBuffer.getBufferMemory());
+
+		copyBuffer(stagingBuffer.getBuffer(), mpIndexBuffer->getBuffer(), bufferSize);
+
 		stagingBuffer.cleanUpBuffer();
 	}
 
@@ -1258,8 +1297,11 @@ private:
 				VkDeviceSize offsets[] = { 0 };
 				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
-				// Draw 3 vertices
-				vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+				// Bind index buffer
+				vkCmdBindIndexBuffer(commandBuffers[i], mpIndexBuffer->getBuffer(), 0, VK_INDEX_TYPE_UINT16);
+
+				// Draw using the index buffer
+				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -1445,6 +1487,7 @@ private:
 		createFramebuffers();
 		createCommandPool();
 		createVertexBuffer();
+		createIndexBuffer();
 		createCommandBuffers();
 		createSyncObjects();
 	}
@@ -1464,6 +1507,7 @@ private:
 	{
 		cleanupSwapChain();
 
+		mpIndexBuffer->cleanUpBuffer();
 		mpVertexBuffer->cleanUpBuffer();
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
