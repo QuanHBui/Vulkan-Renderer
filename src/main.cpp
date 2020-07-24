@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <stdexcept>
@@ -208,8 +209,7 @@ private:
 
 	bool framebufferResized = false;
 
-	VkBuffer mVertexBuffer;
-	VkDeviceMemory mVertexBufferMemory;
+	std::shared_ptr<VulkanBuffer> mpVertexBuffer = nullptr;
 
 	void initWindow()
 	{
@@ -1126,23 +1126,19 @@ private:
 		//  is host coherent to ensure that mapped memory always matches the contents of
 		//  the allocated memory. With this approach, performance might suffer
 		//  slightly compared to explicit flushing.
-		VulkanBuffer vertexBuffer {
+		mpVertexBuffer = std::make_shared<VulkanBuffer>(
 			/* VkDevice = */ device,
 			/* VkPhysicalDevice = */ physicalDevice,
 			/* VkDeviceSize = */ bufferSize,
 			/* VkBufferUsageFlags = */ VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-			/* VkMemoryPropertyFlags = */ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-		};
-
-		mVertexBuffer = vertexBuffer.getBuffer();
-		mVertexBufferMemory = vertexBuffer.getBufferMemory();
+			/* VkMemoryPropertyFlags = */ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		//====================== Copy the vertex data to the buffer ======================
 		void *data;
 		// Map memory to access a region of a specified memory resource with an offset and size
-		vkMapMemory(device, mVertexBufferMemory, 0, bufferSize, 0, &data);
+		vkMapMemory(device, mpVertexBuffer->getBufferMemory(), 0, bufferSize, 0, &data);
 			memcpy(data, vertices.data(), (size_t) bufferSize);
-		vkUnmapMemory(device, mVertexBufferMemory);
+		vkUnmapMemory(device, mpVertexBuffer->getBufferMemory());
 	}
 
 	/**
@@ -1190,7 +1186,7 @@ private:
 				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 				// Bind the vertex buffer to the graphic pipeline
-				VkBuffer vertexBuffers[] = { mVertexBuffer };
+				VkBuffer vertexBuffers[] = { mpVertexBuffer->getBuffer() };
 				VkDeviceSize offsets[] = { 0 };
 				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
@@ -1400,8 +1396,7 @@ private:
 	{
 		cleanupSwapChain();
 
-		vkDestroyBuffer(device, mVertexBuffer, nullptr);
-		vkFreeMemory(device, mVertexBufferMemory, nullptr);
+		mpVertexBuffer->cleanUpBuffer();
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);

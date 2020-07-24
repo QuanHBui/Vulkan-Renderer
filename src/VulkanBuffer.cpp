@@ -1,5 +1,7 @@
 #include "VulkanBuffer.h"
 
+#include <cassert>
+#include <iostream>
 #include <stdexcept>
 
 /**
@@ -36,12 +38,17 @@ uint32_t VulkanBuffer::findMemoryType(
 }
 
 VulkanBuffer::VulkanBuffer(
-	VkDevice const &device,
-	VkPhysicalDevice const &physicalDevice,
+	VkDevice logicalDevice,
+	VkPhysicalDevice physicalDevice,
 	VkDeviceSize size,
 	VkBufferUsageFlags usage,
-	VkMemoryPropertyFlags properties)
+	VkMemoryPropertyFlags properties) :
+	mLogicalDevice(logicalDevice), mPhysicalDevice(physicalDevice)
 {
+	// A logical device and physical device must be created prior to create a buffer
+	assert(mLogicalDevice != VK_NULL_HANDLE);
+	assert(mPhysicalDevice != VK_NULL_HANDLE);
+
 	//============================ Create a buffer object ============================
 	VkBufferCreateInfo bufferInfo{};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -49,13 +56,13 @@ VulkanBuffer::VulkanBuffer(
 	bufferInfo.usage = usage;
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+	if (vkCreateBuffer(logicalDevice, &bufferInfo, nullptr, &mBuffer) != VK_SUCCESS) {
 		throw std::runtime_error("[ERROR] Failed to create a buffer!");
 	}
 
 	// After specifying what our buffer going to be, we need to query what requirements we need to satisfy to create it
 	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
+	vkGetBufferMemoryRequirements(logicalDevice, mBuffer, &memRequirements);
 
 	//========================== Allocate memory on the GPU ==========================
 	VkMemoryAllocateInfo allocInfo{};
@@ -64,10 +71,16 @@ VulkanBuffer::VulkanBuffer(
 	allocInfo.memoryTypeIndex = findMemoryType(
 		physicalDevice, memRequirements.memoryTypeBits, properties);
 
-	if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+	if (vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mBufferMemory) != VK_SUCCESS) {
 		throw std::runtime_error("[ERROR] Failed to allocate buffer memory!");
 	}
 
 	// Associate the memory with the buffer
-	vkBindBufferMemory(device, buffer, bufferMemory, 0);
+	vkBindBufferMemory(logicalDevice, mBuffer, mBufferMemory, 0);
+}
+
+void VulkanBuffer::cleanUpBuffer()
+{
+	vkDestroyBuffer(mLogicalDevice, mBuffer, nullptr);
+	vkFreeMemory(mLogicalDevice, mBufferMemory, nullptr);
 }

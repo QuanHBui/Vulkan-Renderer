@@ -6,30 +6,31 @@
 /**
  * A generic vulkan buffer, it can be any buffer depending on the passed
  *  in VkBufferUsageFlags
- *
- * TODO: Main is handling the cleanup at the moment. This is for later design to see if this
- *  wrapper class should handle its own cleaup. It should. But, it needs to know information
- *  about the VkDevice from main. It might be messy to have every wrapper class to store info
- *  about VkDevice. Further design investigation is needed before making any decision.
  */
 class VulkanBuffer
 {
 private:
-	VkBuffer buffer;
-	VkDeviceMemory bufferMemory;
+	VkBuffer mBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory mBufferMemory = VK_NULL_HANDLE;
+
+	VkDevice mLogicalDevice = VK_NULL_HANDLE;
+	VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
 
 	uint32_t findMemoryType(VkPhysicalDevice const &, uint32_t, VkMemoryPropertyFlags);
 
 public:
+	VulkanBuffer() = default;
 	VulkanBuffer(
-		VkDevice const &,
-		VkPhysicalDevice const &,
+		VkDevice,
+		VkPhysicalDevice,
 		VkDeviceSize,
 		VkBufferUsageFlags,
 		VkMemoryPropertyFlags);
 
-	inline const VkBuffer getBuffer() const { return buffer; }
-	inline const VkDeviceMemory getBufferMemory() const { return bufferMemory; }
+	void cleanUpBuffer();
+
+	inline const VkBuffer getBuffer() const { return mBuffer; }
+	inline const VkDeviceMemory getBufferMemory() const { return mBufferMemory; }
 };
 
 #endif // VULKAN_BUFFER_H
