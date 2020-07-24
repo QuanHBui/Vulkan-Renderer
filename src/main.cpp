@@ -1115,30 +1115,98 @@ private:
 	}
 
 	/**
-	 * Create a buffer object and allocate memory on the GPU for it. After which, the function copies
-	 *  the vertex data from the CPU to the GPU via the allocated vertex buffer.
+	 * Memory transfer between buffers requires command buffers, similarly to drawing commands. Here,
+	 *  we must allocate a temporary command buffer. To optimized, a seperate command pool can be
+	 *  created for these short-lived buffers.
+	 */
+	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+	{
+		VkCommandBufferAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandPool = commandPool;
+		allocInfo.commandBufferCount = 1;
+
+		VkCommandBuffer commandBuffer;
+		vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+		// Start recording the command buffer
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;	// We are going to use this command buffer once
+
+		vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+		VkBufferCopy copyRegion{};
+		copyRegion.srcOffset = 0;
+		copyRegion.dstOffset = 0;
+		copyRegion.size = size;	// Size of the buffer being copied
+		vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+		// Stop recording
+		vkEndCommandBuffer(commandBuffer);
+
+		// Submit and execute the command buffer
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+
+		vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);	// We are not using fence
+		vkQueueWaitIdle(graphicsQueue);	// Wait for this transfer to complete
+
+		// Clean up our temporary command buffer
+		vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+	}
+
+	/**
+	 * This function utilizes a staging buffer to transfer the data from itself to an actual vertex buffer on
+	 *  the GPU. The reason for this because the vertex buffer would be allocated with a memory type that would
+	 *  be optimal for the graphics card to access (with VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT flag); however,
+	 *  this memory type is not accessible by the CPU. The staging buffer does have access to said memory type.
+	 *
+	 * The function is going to first create 2 buffers: a staging buffer and a vertex buffer. Pay attention to the
+	 *  VkMemoryPropertyFlags. The staging buffer uses the GPU memory that is visible to the host (the CPU), whereas
+	 *  the vertex buffer uses the device's dedicated local memory (as mentioned before).
 	 */
 	void createVertexBuffer()
 	{
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
-		// To create our vertex buffer, we request to use a memory heap that
-		//  is host coherent to ensure that mapped memory always matches the contents of
-		//  the allocated memory. With this approach, performance might suffer
-		//  slightly compared to explicit flushing.
+		/* To create our staging buffer, we request to use a memory heap that
+		    is host coherent to ensure that mapped memory always matches the contents of
+		    the allocated memory. With this approach, performance might suffer
+		    slightly compared to explicit flushing. However, this is just a staging buffer
+		    so the performance hit doesn't matter.
+		*/
+		VulkanBuffer stagingBuffer = {
+			/* VkDevice = */ device,
+			/* VkPhysicalDevice = */ physicalDevice,
+			/* VkDeviceSize = */ bufferSize,
+			/* VkBufferUsageFlags = */ VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			/* VkMemoryPropertyFlags = */ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		};
+
 		mpVertexBuffer = std::make_shared<VulkanBuffer>(
 			/* VkDevice = */ device,
 			/* VkPhysicalDevice = */ physicalDevice,
 			/* VkDeviceSize = */ bufferSize,
-			/* VkBufferUsageFlags = */ VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-			/* VkMemoryPropertyFlags = */ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			/* VkBufferUsageFlags = */ VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			/* VkMemoryPropertyFlags = */ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+		);
 
-		//====================== Copy the vertex data to the buffer ======================
+		//====================== Copy the vertex data to the staging buffer ======================
 		void *data;
 		// Map memory to access a region of a specified memory resource with an offset and size
-		vkMapMemory(device, mpVertexBuffer->getBufferMemory(), 0, bufferSize, 0, &data);
+		vkMapMemory(device, stagingBuffer.getBufferMemory(), 0, bufferSize, 0, &data);
 			memcpy(data, vertices.data(), (size_t) bufferSize);
-		vkUnmapMemory(device, mpVertexBuffer->getBufferMemory());
+		vkUnmapMemory(device, stagingBuffer.getBufferMemory());
+
+		//======================= Transfer data from staging to vertex buffer =======================
+		copyBuffer(stagingBuffer.getBuffer(), mpVertexBuffer->getBuffer(), bufferSize);
+
+		// Clean up staging buffer
+		stagingBuffer.cleanUpBuffer();
 	}
 
 	/**
