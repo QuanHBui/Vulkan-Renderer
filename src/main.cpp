@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+#include "VulkanBuffer.h"
+
 const uint32_t WIDTH = 800, HEIGHT = 600;
 
 // How many frames should be processed concurrently
@@ -28,9 +30,9 @@ const std::vector<const char *> validationLayers = {
 };
 
 #ifdef NDEBUG
-	const bool enableValidationLayers = false;
+const bool enableValidationLayers = false;
 #else
-	const bool enableValidationLayers = true;
+const bool enableValidationLayers = true;
 #endif
 
 // List of required device extensions
@@ -206,8 +208,8 @@ private:
 
 	bool framebufferResized = false;
 
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
+	VkBuffer mVertexBuffer;
+	VkDeviceMemory mVertexBufferMemory;
 
 	void initWindow()
 	{
@@ -774,9 +776,6 @@ private:
 		createInfo.presentMode = presentMode;
 		createInfo.clipped = VK_TRUE;	// Clipping for better performance, we don't care about obscured pixels.
 
-		// TODO: swap chain can be obsolete in the case of window resizing. A new swap chain must be created from
-		//  scratch. At the moment, we are assuming that only 1 swap chain is ever created.
-
 		// Actually create the swap chain
 		if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
 			throw std::runtime_error("[ERROR] Failed to create swap chain!");
@@ -1116,82 +1115,34 @@ private:
 	}
 
 	/**
-	 * Graphics cards can offer different types of memory to allocate from, we need to find the right
-	 *  type of memory to use to allocate our buffer.
-	 *
-	 * @param: typeFilter	specify the bit field of memory types that are suitable
-	 */
-	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
-	{
-		// Query info about the available types of memory
-		VkPhysicalDeviceMemoryProperties memProperties;	// We get memory types and memory heaps from this
-		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-
-		for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i) {
-			/* The parameter typeFilter that passed in is from memoryTypeBits of struct VkMemoryRequirements.
-				It is a bit field that sets a bit for every memoryType that is supported for the resource.
-				So, we need to first check a bit at a certain index from VkPhysicalDeviceMemory is on by left shifting
-				the number 1 by the amount of the index.
-
-				After which, we need to check the propertyFlags of the memoryType at a certain index as well with
-				similar AND bitwise operation fashion. However, we may have more than one desire property so we
-				need to check not only if the result of the bitwise operation is non-zero, we also need to check
-				if the bitwise operation result is equal to the desired bit properties bit filed.
-			*/
-			if (typeFilter & (1 << i) &&
-				(memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-				return i;
-			}
-		}
-
-		throw std::runtime_error("[ERROR] Failed to find suitable memory type!");
-	}
-
-	/**
 	 * Create a buffer object and allocate memory on the GPU for it. After which, the function copies
 	 *  the vertex data from the CPU to the GPU via the allocated vertex buffer.
 	 */
 	void createVertexBuffer()
 	{
-		//============================ Create a buffer object ============================
-		VkBufferCreateInfo bufferInfo{};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = sizeof(vertices[0]) * vertices.size();
-		bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;	// Purpose of the buffer, it's vertex buffer
-		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;		// This buffer will only be used from graphics queue
+		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
-		if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
-			throw std::runtime_error("[ERROR] Failed to create vertex buffer!");
-		}
+		// To create our vertex buffer, we request to use a memory heap that
+		//  is host coherent to ensure that mapped memory always matches the contents of
+		//  the allocated memory. With this approach, performance might suffer
+		//  slightly compared to explicit flushing.
+		VulkanBuffer vertexBuffer {
+			/* VkDevice = */ device,
+			/* VkPhysicalDevice = */ physicalDevice,
+			/* VkDeviceSize = */ bufferSize,
+			/* VkBufferUsageFlags = */ VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			/* VkMemoryPropertyFlags = */ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		};
 
-		// After specifying what our buffer going to be, we need to query what requirements we need to satisfy to create it
-		VkMemoryRequirements memRequirements;
-		vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
-
-		//========================== Allocate memory on the GPU ==========================
-		// This is just a generic memory allocation on the GPU, it is not specific to a vertex buffer
-		VkMemoryAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memRequirements.size;
-
-		// We request to use a memory heap that is host coherent to ensure that mapped memory always matches the contents of
-		//  the allocated memory. With this approach, performance might suffer slightly compared to explicit flushing.
-		allocInfo.memoryTypeIndex =
-			findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-		if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) {
-			throw std::runtime_error("[ERROR] Failed to allocate memory for vertex buffer!");
-		}
-
-		// Associate the memory with the buffer
-		vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+		mVertexBuffer = vertexBuffer.getBuffer();
+		mVertexBufferMemory = vertexBuffer.getBufferMemory();
 
 		//====================== Copy the vertex data to the buffer ======================
 		void *data;
 		// Map memory to access a region of a specified memory resource with an offset and size
-		vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-			memcpy(data, vertices.data(), (size_t) bufferInfo.size);
-		vkUnmapMemory(device, vertexBufferMemory);
+		vkMapMemory(device, mVertexBufferMemory, 0, bufferSize, 0, &data);
+			memcpy(data, vertices.data(), (size_t) bufferSize);
+		vkUnmapMemory(device, mVertexBufferMemory);
 	}
 
 	/**
@@ -1226,19 +1177,20 @@ private:
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			renderPassInfo.renderPass = renderPass;
 			renderPassInfo.framebuffer = swapChainFramebuffers[i];	// Specify attachments to bind, the color attachment
-			renderPassInfo.renderArea.offset = {0, 0};
+			renderPassInfo.renderArea.offset = { 0, 0 };
 			renderPassInfo.renderArea.extent = swapChainExtent;
 
-			VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};		// Load operation for color attachment: we clear color with 100% opacity black
+			VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };		// Load operation for color attachment: we clear color with 100% opacity black
 			renderPassInfo.clearValueCount = 1;
 			renderPassInfo.pClearValues = &clearColor;
 
 			// Our render pass commands are embedded in the primary command buffer itself. No secondary command buffers.
 			vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
 				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 				// Bind the vertex buffer to the graphic pipeline
-				VkBuffer vertexBuffers[] = { vertexBuffer };
+				VkBuffer vertexBuffers[] = { mVertexBuffer };
 				VkDeviceSize offsets[] = { 0 };
 				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
@@ -1448,8 +1400,8 @@ private:
 	{
 		cleanupSwapChain();
 
-		vkDestroyBuffer(device, vertexBuffer, nullptr);
-		vkFreeMemory(device, vertexBufferMemory, nullptr);
+		vkDestroyBuffer(device, mVertexBuffer, nullptr);
+		vkFreeMemory(device, mVertexBufferMemory, nullptr);
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
