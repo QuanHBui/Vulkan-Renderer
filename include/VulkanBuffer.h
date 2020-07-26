@@ -32,8 +32,8 @@ public:
 
 	void cleanUpBuffer();
 
-	inline const VkBuffer getBuffer() const { return mBuffer; }
-	inline const VkDeviceMemory getBufferMemory() const { return mBufferMemory; }
+	inline VkBuffer getBuffer() const { return mBuffer; }
+	inline VkDeviceMemory getBufferMemory() const { return mBufferMemory; }
 };
 
 #endif // VULKAN_BUFFER_H

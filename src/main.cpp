@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "VulkanBaseApplication.h"
 #include "VulkanBuffer.h"
 
 const uint32_t WIDTH = 800, HEIGHT = 600;
@@ -25,54 +26,10 @@ const uint32_t WIDTH = 800, HEIGHT = 600;
 // How many frames should be processed concurrently
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
-// List of validation layers to enable
-const std::vector<const char *> validationLayers = {
-	"VK_LAYER_KHRONOS_validation"
-};
-
-#ifdef NDEBUG
-const bool enableValidationLayers = false;
-#else
-const bool enableValidationLayers = true;
-#endif
-
 // List of required device extensions
 const std::vector<const char *> deviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
-
-/**
- * Load function vkCreateDebugUtilsMessengerEXT to create VkDebugUtilsMessengerEXT object.
- *  This is function is a proxy function that calls vkGetInstanceProcAddr first.
- */
-VkResult createDebugUtilsMessengerEXT(
-	VkInstance instance,
-	const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-	const VkAllocationCallbacks *pAllocator,
-	VkDebugUtilsMessengerEXT *pDebugMessenger)
-{
-	PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-	if (func) {
-		return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-	} else {
-		return VK_ERROR_EXTENSION_NOT_PRESENT;
-	}
-}
-
-/**
- * Similar to createDebugUtilsMessengerEXT, this is a proxy function to load and call vkDestroyDebugUtilsMessengerEXT
- *  to destroy our created VkDebugUtilsMessengerEXT object.
- */
-void destroyDebugUtilsMessengerEXT(
-	VkInstance instance,
-	VkDebugUtilsMessengerEXT debugMessenger,
-	const VkAllocationCallbacks *pAllocator)
-{
-	PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-	if (func) {
-		func(instance, debugMessenger, pAllocator);
-	}
-}
 
 /**
  * It is possible that queue families supporting drawing commands and the ones supporting presentation do not overlap.
@@ -183,7 +140,7 @@ private:
 	GLFWwindow *window;
 
 	VkInstance instance;
-	VkDebugUtilsMessengerEXT debugMessenger;
+
 	VkSurfaceKHR surface;					// Connect between Vulkan and window system
 
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -236,33 +193,6 @@ private:
 	}
 
 	/**
-	 * Check if all of the layers in validationLayers exists in the availableLayers list
-	 */
-	bool checkValidationLayerSupport()
-	{
-		uint32_t layerCount;
-		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-		std::vector<VkLayerProperties> availableLayers(layerCount);
-		vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-		for (const char *layerName : validationLayers) {
-			bool layerFound = false;
-
-			for (const VkLayerProperties &layerProperties : availableLayers) {
-				if (strcmp(layerName, layerProperties.layerName) == 0) {
-					layerFound = true;
-					break;
-				}
-			}
-
-			if (!layerFound)
-				return false;
-		}
-
-		return true;
-	}
-
-	/**
 	 * Return the required list of extensions based on whether validation layers are enabled or not.
 	 *  The debug messenger extension is conditionally added based on aformentioned condition.
 	 */
@@ -284,21 +214,6 @@ private:
 	}
 
 	/**
-	 * Return a boolean that indicates if the Vulkan call that triggered the validation layer
-	 *  message should be aborted. If this returns true, then the call is aborted with
-	 *  VK_ERROR_VALIDATION_FAILED_EXT error.
-	 */
-	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-		VkDebugUtilsMessageTypeFlagsEXT messageType,
-		const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-		void *pUserData)
-	{
-		std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
-		return VK_FALSE;
-	}
-
-	/**
 	 * This function has to be static because GLFW doesn't know how to properly refer to the current
 	 *  instance of our HelloTriangleApplication. A static member function has the benefit of can be used
 	 *  without creating the the class first, i.e. this function can be used without an instance of
@@ -314,31 +229,6 @@ private:
 		// We have to use reinterpret_cast because glfwGetWindowUserPointer returns an arbitrary pointer type, a void * so to speak
 		HelloTriangleApplication *app = reinterpret_cast<HelloTriangleApplication *>(glfwGetWindowUserPointer(window));
 		app->framebufferResized = true;	// Set the resize flag in the case of this callback function got called
-	}
-
-	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo)
-	{
-		createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-		createInfo.messageSeverity =	VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-										VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-										VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-		createInfo.messageType =	VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-									VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-									VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-		createInfo.pfnUserCallback = debugCallback;
-	}
-
-	void setupDebugMessenger()
-	{
-		if (!enableValidationLayers) return;
-
-		VkDebugUtilsMessengerCreateInfoEXT createInfo;
-		populateDebugMessengerCreateInfo(createInfo);
-
-		if (createDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
-			throw std::runtime_error("[ERROR] Failed to set up debug messenger!");
-		}
 	}
 
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
@@ -386,10 +276,6 @@ private:
 	 */
 	void createInstance()
 	{
-		if (enableValidationLayers && !checkValidationLayerSupport()) {
-			throw std::runtime_error("[ERROR] Validation layers requested, but not available!");
-		}
-
 		VkApplicationInfo appInfo{};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		appInfo.pApplicationName = "Hello Triangle";
@@ -401,44 +287,10 @@ private:
 		// Get info about required extensions
 		std::vector<const char *> extensions = getRequiredExtensions();
 
-		VkInstanceCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		createInfo.pApplicationInfo = &appInfo;
-		createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-		createInfo.ppEnabledExtensionNames = extensions.data();
+		VulkanBaseApplication baseApplication;
+		baseApplication.createVulkanInstance(&appInfo, extensions);
 
-		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
-		// Enable validation layers if debug mode
-		if (enableValidationLayers) {
-			createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-			createInfo.ppEnabledLayerNames = validationLayers.data();
-
-			populateDebugMessengerCreateInfo(debugCreateInfo);
-			createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
-		} else {
-			createInfo.enabledLayerCount = 0;
-			createInfo.pNext = nullptr;
-		}
-
-		if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-			throw std::runtime_error("[ERROR] Failed to create a Vulkan instance");
-		}
-
-		// // Get info about optional supported extensions
-		// uint32_t extensionCount = 0;
-		// vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-		// std::vector<VkExtensionProperties> extensions(extensionCount);
-		// vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-
-		// std::cout << "Available extensions:\n";
-		// for (const auto &extension : extensions) {
-		// 	std::cout << '\t' << extension.extensionName << '\n';
-		// }
-
-		// std::cout << "Required extensions:\n";
-		// for (uint32_t i = 0; i < glfwExtensionCount; ++i) {
-		// 	std::cout << '\t' << glfwExtensions[i] << '\n';
-		// }
+		instance = baseApplication.getVulkanInstance();
 	}
 
 	/**
@@ -1476,7 +1328,6 @@ private:
 	void initVulkan()
 	{
 		createInstance();
-		setupDebugMessenger();
 		createSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
@@ -1520,12 +1371,8 @@ private:
 
 		vkDestroyDevice(device, nullptr);
 
-		if (enableValidationLayers) {
-			destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
-		}
 
 		vkDestroySurfaceKHR(instance, surface, nullptr);
-		vkDestroyInstance(instance, nullptr);
 
 		glfwDestroyWindow(window);
 		glfwTerminate();
