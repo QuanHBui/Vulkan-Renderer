@@ -16,7 +16,6 @@ private:
 	VkDebugUtilsMessengerEXT debugMessenger;
 
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &);
-	void setupDebugMessenger();
 	bool checkValidationLayerSupport();
 
 public:

@@ -31,18 +31,6 @@ void VulkanBaseApplication::populateDebugMessengerCreateInfo(VkDebugUtilsMesseng
 	createInfo.pfnUserCallback = debugCallback;
 }
 
-void VulkanBaseApplication::setupDebugMessenger()
-{
-	if (!enableValidationLayers) return;
-
-	VkDebugUtilsMessengerCreateInfoEXT createInfo;
-	populateDebugMessengerCreateInfo(createInfo);
-
-	if (vkutils::createDebugUtilsMessengerEXT(vulkanInstance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
-		throw std::runtime_error("[ERROR] Failed to set up debug messenger!");
-	}
-}
-
 /**
  * Check if all of the layers in validationLayers exists in the availableLayers list
  */
@@ -90,7 +78,8 @@ void VulkanBaseApplication::createVulkanInstance(
 		createInfo.ppEnabledLayerNames = validationLayers.data();
 
 		populateDebugMessengerCreateInfo(debugCreateInfo);
-		createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
+		createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *) &debugCreateInfo;
+
 	} else {
 		createInfo.enabledLayerCount = 0;
 		createInfo.pNext = nullptr;
@@ -98,6 +87,15 @@ void VulkanBaseApplication::createVulkanInstance(
 
 	if (vkCreateInstance(&createInfo, nullptr, &vulkanInstance) != VK_SUCCESS) {
 		throw std::runtime_error("[ERROR] Failed to create a Vulkan instance");
+	}
+
+	// Set up debug messenger
+	if (enableValidationLayers) {
+		populateDebugMessengerCreateInfo(debugCreateInfo);
+
+		if (vkutils::createDebugUtilsMessengerEXT(vulkanInstance, &debugCreateInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+			throw std::runtime_error("[ERROR] Failed to set up debug messenger!");
+		}
 	}
 }
 
@@ -119,7 +117,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanBaseApplication::debugCallback(
 void VulkanBaseApplication::cleanUp()
 {
 	if (enableValidationLayers) {
-			vkutils::destroyDebugUtilsMessengerEXT(vulkanInstance, debugMessenger, nullptr);
+		vkutils::destroyDebugUtilsMessengerEXT(vulkanInstance, debugMessenger, nullptr);
 	}
 
 	vkDestroyInstance(vulkanInstance, nullptr);

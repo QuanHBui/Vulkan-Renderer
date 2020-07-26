@@ -139,12 +139,13 @@ public:
 private:
 	GLFWwindow *window;
 
+	VulkanBaseApplication baseApp;
 	VkInstance instance;
 
-	VkSurfaceKHR surface;					// Connect between Vulkan and window system
+	VkSurfaceKHR surface;	// Connect between Vulkan and window system
 
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-	VkDevice device;						// Logical device handle
+	VkDevice device;		// Logical device handle
 
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
@@ -274,7 +275,7 @@ private:
 	 * Must fill info to the second struct, VkInstanceCreateInfo, as it is NOT optional.
 	 *  VkInstanceCreateInfo tells Vulkan driver which global extensions and validation layers to use.
 	 */
-	void createInstance()
+	void createBaseApplication()
 	{
 		VkApplicationInfo appInfo{};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -287,10 +288,9 @@ private:
 		// Get info about required extensions
 		std::vector<const char *> extensions = getRequiredExtensions();
 
-		VulkanBaseApplication baseApplication;
-		baseApplication.createVulkanInstance(&appInfo, extensions);
+		baseApp.createVulkanInstance(&appInfo, extensions);
 
-		instance = baseApplication.getVulkanInstance();
+		instance = baseApp.getVulkanInstance();
 	}
 
 	/**
@@ -1327,7 +1327,7 @@ private:
 
 	void initVulkan()
 	{
-		createInstance();
+		createBaseApplication();
 		createSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
@@ -1368,11 +1368,10 @@ private:
 		}
 
 		vkDestroyCommandPool(device, commandPool, nullptr);
-
 		vkDestroyDevice(device, nullptr);
-
-
 		vkDestroySurfaceKHR(instance, surface, nullptr);
+
+		baseApp.cleanUp();
 
 		glfwDestroyWindow(window);
 		glfwTerminate();

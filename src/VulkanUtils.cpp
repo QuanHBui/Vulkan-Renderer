@@ -1,5 +1,7 @@
 #include "VulkanUtils.h"
 
+#include <iostream>
+
 namespace vkutils
 {
 	/**
