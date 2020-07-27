@@ -1,10 +1,14 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+// Force glm::rotate to use radians as arguments
+#define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
 #include <array>
+#include <chrono>	// Precise timekeeping
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -20,6 +24,7 @@
 
 #include "VulkanBaseApplication.h"
 #include "VulkanBuffer.h"
+#include "Vertex.h"
 
 const uint32_t WIDTH = 800, HEIGHT = 600;
 
@@ -58,56 +63,11 @@ struct SwapChainSupportDetails
 	std::vector<VkPresentModeKHR> presentModes;
 };
 
-struct Vertex
+struct UniformBufferObject
 {
-	glm::vec2 position;
-	glm::vec3 color;
-
-	/**
-	 * A vertex binding specifies the number of bytes between data entries and whether to :
-	 *  (1) move to the next data entry after each vertex OR
-	 *  (2) after each instance
-	 * Since we are not doing instanced rendering, we are going to use (1)
-	 *
-	 * This piece of information is used to describe to the GPU how to read
-	 *  the data per vertex, as opposed to VkVertexInputAttributeDescription
-	 *  below, which is per attribute.
-	 */
-	static VkVertexInputBindingDescription getBindingDescription()
-	{
-		VkVertexInputBindingDescription bindingDescription{};
-		bindingDescription.binding = 0;
-		bindingDescription.stride = sizeof(Vertex);
-		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;	// We are not using instanced rendering so this is
-																	//  going to per-vertex data
-
-		return bindingDescription;
-	}
-
-	/**
-	 * We have 2 attribute description objects because we have 2 attributes, position and color.
-	 *
-	 * This struct, VkVertexInputAttributeDescription, shows the GPU how to read
-	 *  data per attribute.
-	 */
-	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
-	{
-		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
-
-		// Position attibute
-		attributeDescriptions[0].binding = 0;		// Which binding per-vertex data from
-		attributeDescriptions[0].location = 0;		// location directive specified in vertex shader
-		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;		// vec3 format. Vulkan uses the same enumeration as color format for some reason
-		attributeDescriptions[0].offset = offsetof(Vertex, position);
-
-		// Color attribute
-		attributeDescriptions[1].binding = 0;
-		attributeDescriptions[1].location = 1;
-		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-		return attributeDescriptions;
-	}
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
 };
 
 // This is our triangle vertex data
@@ -116,7 +76,6 @@ const std::vector<Vertex> vertices = {
 	{{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
 	{{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
 	{{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
-
 };
 
 // Our triangles are drawn counterclockwise. Hopefully, we are using fewer than
@@ -157,6 +116,8 @@ private:
 	std::vector<VkImageView> swapChainImageViews;
 
 	VkRenderPass renderPass;
+
+	VkDescriptorSetLayout mDescriptorSetLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 
@@ -173,8 +134,10 @@ private:
 
 	bool framebufferResized = false;
 
+	// There must be a better way for "delayed" initialization
 	std::shared_ptr<VulkanBuffer> mpVertexBuffer = nullptr;
 	std::shared_ptr<VulkanBuffer> mpIndexBuffer = nullptr;
+	std::vector<std::shared_ptr<VulkanBuffer>> mpUniformBuffers;	// Multiple uniform buffers
 
 	void initWindow()
 	{
@@ -732,6 +695,26 @@ private:
 		}
 	}
 
+	void createDescriptorSetLayout()
+	{
+		VkDescriptorSetLayoutBinding uboLayoutBinding{};
+		uboLayoutBinding.binding = 0;	// Should match the descriptor in the vertex shader
+		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;	// Type of descriptor is ubo
+		uboLayoutBinding.descriptorCount = 1;	// Number of values in the array; we can bind an array of ubo's
+		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	// Vertex shader stage is going to reference this descriptor
+		uboLayoutBinding.pImmutableSamplers = nullptr;	// For image sampling related descriptor
+
+		// All descriptor bindings are combined into a single VkDescriptorSetLayout
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &uboLayoutBinding;
+
+		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &mDescriptorSetLayout) != VK_SUCCESS) {
+			throw std::runtime_error("[ERROR] Failed to create descriptor set layout!");
+		}
+	}
+
 	/**
 	 * Simple helper function to load in the SPIR-V bytecode generated from the shaders
 	 */
@@ -897,8 +880,8 @@ private:
 		// Create pipeline layout object. Used to specify uniform values
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = 0;
-		pipelineLayoutInfo.pSetLayouts = nullptr;
+		pipelineLayoutInfo.setLayoutCount = 1;
+		pipelineLayoutInfo.pSetLayouts = &mDescriptorSetLayout;	// Specify the descriptor set layout for vertex shader to use ubo
 		pipelineLayoutInfo.pushConstantRangeCount = 0;
 		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
@@ -1060,7 +1043,7 @@ private:
 		void *data;
 		// Map memory to access a region of a specified memory resource with an offset and size
 		vkMapMemory(device, stagingBuffer.getBufferMemory(), 0, bufferSize, 0, &data);
-		memcpy(data, vertices.data(), (size_t) bufferSize);
+			memcpy(data, vertices.data(), (size_t) bufferSize);
 		vkUnmapMemory(device, stagingBuffer.getBufferMemory());
 
 		//================== Transfer data from staging buffer to vertex buffer ==================
@@ -1092,12 +1075,38 @@ private:
 
 		void *data;
 		vkMapMemory(device, stagingBuffer.getBufferMemory(), 0, bufferSize, 0, &data);
-		memcpy(data, indices.data(), (size_t) bufferSize);
+			memcpy(data, indices.data(), (size_t) bufferSize);
 		vkUnmapMemory(device, stagingBuffer.getBufferMemory());
 
 		copyBuffer(stagingBuffer.getBuffer(), mpIndexBuffer->getBuffer(), bufferSize);
 
 		stagingBuffer.cleanUpBuffer();
+	}
+
+	/**
+	 * We should have multiple uniform buffers due to the asynchronous nature of frame rendering in Vulkan.
+	 *  For instance, if we only have 1 ubo, and there are multiple frames reading from it. We don't want
+	 *  to update the ubo after frame 4 has been rendered while frame 2 is still in flight (also, it seems
+	 *  like doing update per frame is a terrible idea for Vulkan because of how many frames can be rendered
+	 *  at the same time).
+	 *
+	 * So, we are going to have as many ubo's as swap chain images, or one ubo per swap chain image.
+	 */
+	void createUniformBuffers()
+	{
+		VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+		mpUniformBuffers.resize(swapChainImages.size());
+
+		for (std::shared_ptr<VulkanBuffer> &pUniformBuffer : mpUniformBuffers) {
+			pUniformBuffer = std::make_shared<VulkanBuffer>(
+				device,
+				physicalDevice,
+				bufferSize,
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+			);
+		}
 	}
 
 	/**
@@ -1191,6 +1200,28 @@ private:
 		}
 	}
 
+	void updateUniformBuffer(uint32_t currentImage)
+	{
+		static auto startTime = std::chrono::high_resolution_clock::now();
+
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		float timeElasped = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+		UniformBufferObject ubo{};
+		ubo.model = glm::rotate(glm::mat4(1.0f), timeElasped * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+
+		// glm was original made for OpenGL, where Y coordinate of the clip coordinates is inverted, we need to flip
+		//  this dimension for Vulkan
+		ubo.proj[1][1] *= -1;	// We flip the sign on the scaling factor of the Y axis in the projection matrix
+
+		void *data;
+		vkMapMemory(device, mpUniformBuffers[currentImage]->getBufferMemory(), 0, sizeof(ubo), 0, &data);
+			memcpy(data, &ubo, sizeof(ubo));
+		vkUnmapMemory(device, mpUniformBuffers[currentImage]->getBufferMemory());
+	}
+
 	/**
 	 * (1) Acquire an image from the swap chain
 	 * (2) Execute the command buffer with acquired image as attachment in the framebuffer
@@ -1217,6 +1248,9 @@ private:
 		} else if (acquireImageResult != VK_SUCCESS && acquireImageResult != VK_SUBOPTIMAL_KHR) {
 			throw std::runtime_error("[ERROR] Failed to acquire swap chain image!");
 		}
+
+		// At this point, we know what swap chain we are going to use, so we are going to update ubo
+		updateUniformBuffer(imageIndex);
 
 		// Check if a previous frame is using this image, i.e. there is its fence to wait on
 		if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
@@ -1286,12 +1320,16 @@ private:
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 		vkDestroyRenderPass(device, renderPass, nullptr);
 
-
 		for (VkImageView &imageView : swapChainImageViews) {
 			vkDestroyImageView(device, imageView, nullptr);
 		}
 
 		vkDestroySwapchainKHR(device, swapChain, nullptr);
+
+		// We clean up uniform buffers here because it is dependent on the number of swap chain images
+		for (std::shared_ptr<VulkanBuffer> &pUniformBuffer : mpUniformBuffers) {
+			pUniformBuffer->cleanUpBuffer();
+		}
 	}
 
 	/**
@@ -1318,28 +1356,39 @@ private:
 		cleanupSwapChain();
 
 		createSwapChain();
-		createImageViews();			// Image views are based directly on the swap chain images
+		createImageViews();			// Image views are based directly on the number of swap chain images
 		createRenderPass();			// Render pass is dependent on the format of swap chain image. However, it's rare that image format would change during window resize
+
 		createGraphicsPipeline();	// Viewport and scissor rectangle size are specified during graphics pipeline creation
-		createFramebuffers();		// Framebuffers directly depends on swap chain images
-		createCommandBuffers();		// Command buffers also directly depends on swap chain images
+		createFramebuffers();		// Same as image views
+		createUniformBuffers();		// Same as image views
+		createCommandBuffers();		// Same as image views
 	}
 
 	void initVulkan()
 	{
 		createBaseApplication();
+
 		createSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
+
 		createSwapChain();
 		createImageViews();
 		createRenderPass();
+		createDescriptorSetLayout();
+
 		createGraphicsPipeline();
 		createFramebuffers();
+
 		createCommandPool();
+
 		createVertexBuffer();
 		createIndexBuffer();
+		createUniformBuffers();
+
 		createCommandBuffers();
+
 		createSyncObjects();
 	}
 
@@ -1357,6 +1406,8 @@ private:
 	void cleanup()
 	{
 		cleanupSwapChain();
+
+		vkDestroyDescriptorSetLayout(device, mDescriptorSetLayout, nullptr);
 
 		mpIndexBuffer->cleanUpBuffer();
 		mpVertexBuffer->cleanUpBuffer();
