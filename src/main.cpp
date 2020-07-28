@@ -139,6 +139,9 @@ private:
 	std::shared_ptr<VulkanBuffer> mpIndexBuffer = nullptr;
 	std::vector<std::shared_ptr<VulkanBuffer>> mpUniformBuffers;	// Multiple uniform buffers
 
+	VkDescriptorPool mDescriptorPool;
+	std::vector<VkDescriptorSet> mDescriptorSets;
+
 	void initWindow()
 	{
 		glfwInit();
@@ -716,6 +719,77 @@ private:
 	}
 
 	/**
+	 * Descriptor sets can't be created directly, they must be allocated from a pool like command buffers.
+	 */
+	void createDescriptorPool()
+	{
+		// Describe which descriptor types our descriptor sets are going to contain and how many
+		VkDescriptorPoolSize poolSize{};
+		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSize.descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+
+		// Allocate one descriptor for every frame
+		VkDescriptorPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.poolSizeCount = 1;
+		poolInfo.pPoolSizes = &poolSize;
+		poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());	// Specify the max number of descriptor sets may be allocated
+
+		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &mDescriptorPool) != VK_SUCCESS) {
+			throw std::runtime_error("[ERROR] Failed to create descriptor pool!");
+		}
+	}
+
+	/**
+	 * After a descriptor pool is created, we can go ahead and allocate the descriptor sets. We are
+	 *  going to create one descriptor set for each swap chain image, with the same layout. Need to store
+	 *  all copies of the same layout in one array because the function expects an array matching the
+	 *  number of sets.
+	 *
+	 * We don't need to explicitly clean up descriptor sets because they are freed when the descriptor pool
+	 *  is destroyed.
+	 */
+	void createDescriptorSets()
+	{
+		std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), mDescriptorSetLayout);
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = mDescriptorPool;	// Descriptor pool to allocate the sets from
+		allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());	// Number of sets to allocate
+		allocInfo.pSetLayouts = layouts.data();	// Descriptor layout to base the sets on
+
+		mDescriptorSets.resize(swapChainImages.size());
+
+		if (vkAllocateDescriptorSets(device, &allocInfo, mDescriptorSets.data()) != VK_SUCCESS) {
+			throw std::runtime_error("[ERROR] Failed to allocaate descriptor sets!");
+		}
+
+		// Allocated sets still need to be populated/configured
+		for (size_t i = 0; i < swapChainImages.size(); ++i) {
+			// Info about the buffer object that descriptor refers to
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = mpUniformBuffers[i]->getBuffer();
+			bufferInfo.offset = 0;
+			bufferInfo.range = sizeof(UniformBufferObject);
+
+			// Tell Vulkan driver how configuration of descriptors is updated
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = mDescriptorSets[i];	// Specify descriptor set to update
+			descriptorWrite.dstBinding = 0;
+			descriptorWrite.dstArrayElement = 0;	// First index in the descriptor array to update; our descriptors aren't array
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;	// Specify this descriptor refers to ubo
+			descriptorWrite.descriptorCount = 1;	// How many descriptor want to update
+			descriptorWrite.pBufferInfo = &bufferInfo;
+			descriptorWrite.pImageInfo = nullptr;
+			descriptorWrite.pTexelBufferView = nullptr;
+
+			// Apply the update
+			vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+		}
+	}
+
+	/**
 	 * Simple helper function to load in the SPIR-V bytecode generated from the shaders
 	 */
 	static std::vector<char> readFile(const std::string &filename)
@@ -838,7 +912,7 @@ private:
 		rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterizer.lineWidth = 1.0f;
 		rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizer.depthBiasEnable = VK_FALSE;
 		rasterizer.depthBiasConstantFactor = 0.0f;
 		rasterizer.depthBiasClamp = 0.0f;
@@ -1161,6 +1235,11 @@ private:
 				// Bind index buffer
 				vkCmdBindIndexBuffer(commandBuffers[i], mpIndexBuffer->getBuffer(), 0, VK_INDEX_TYPE_UINT16);
 
+				// Bind the right descriptor set for each swap chain image to the descriptor in the shader
+				// We also specify that we bind this descriptor set to the graphics pipeline, as opposed to compute pipeline
+				vkCmdBindDescriptorSets(
+					commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &mDescriptorSets[i], 0, nullptr);
+
 				// Draw using the index buffer
 				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
@@ -1330,6 +1409,8 @@ private:
 		for (std::shared_ptr<VulkanBuffer> &pUniformBuffer : mpUniformBuffers) {
 			pUniformBuffer->cleanUpBuffer();
 		}
+
+		vkDestroyDescriptorPool(device, mDescriptorPool, nullptr);
 	}
 
 	/**
@@ -1360,9 +1441,11 @@ private:
 		createRenderPass();			// Render pass is dependent on the format of swap chain image. However, it's rare that image format would change during window resize
 
 		createGraphicsPipeline();	// Viewport and scissor rectangle size are specified during graphics pipeline creation
-		createFramebuffers();		// Same as image views
-		createUniformBuffers();		// Same as image views
-		createCommandBuffers();		// Same as image views
+		createFramebuffers();
+		createUniformBuffers();
+		createDescriptorPool();
+		createDescriptorSets();
+		createCommandBuffers();
 	}
 
 	void initVulkan()
@@ -1386,6 +1469,8 @@ private:
 		createVertexBuffer();
 		createIndexBuffer();
 		createUniformBuffers();
+		createDescriptorPool();
+		createDescriptorSets();
 
 		createCommandBuffers();
 
