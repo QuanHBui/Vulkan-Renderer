@@ -26,6 +26,12 @@
 #include "VulkanBuffer.h"
 #include "Vertex.h"
 
+#ifdef _MSC_VER
+constexpr char precompiled_shaders_dir[] = "../../resources/shaders/";
+#else
+constexpr char precompiled_shaders_dir[] = "../resources/shaders/";
+#endif
+
 const uint32_t WIDTH = 800, HEIGHT = 600;
 
 // How many frames should be processed concurrently
@@ -761,7 +767,7 @@ private:
 		mDescriptorSets.resize(swapChainImages.size());
 
 		if (vkAllocateDescriptorSets(device, &allocInfo, mDescriptorSets.data()) != VK_SUCCESS) {
-			throw std::runtime_error("[ERROR] Failed to allocaate descriptor sets!");
+			throw std::runtime_error("[ERROR] Failed to allocate descriptor sets!");
 		}
 
 		// Allocated sets still need to be populated/configured
@@ -844,8 +850,8 @@ private:
 	 */
 	void createGraphicsPipeline()
 	{
-		std::vector<char> vertShaderCode = readFile("../resources/shaders/vert.spv");
-		std::vector<char> fragShaderCode = readFile("../resources/shaders/frag.spv");
+		std::vector<char> vertShaderCode = readFile(std::string(precompiled_shaders_dir) + "vert.spv");
+		std::vector<char> fragShaderCode = readFile(std::string(precompiled_shaders_dir) + "frag.spv");
 
 		VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
 		VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);

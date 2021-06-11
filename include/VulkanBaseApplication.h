@@ -22,7 +22,7 @@ public:
 	void createVulkanInstance
 		(const VkApplicationInfo *, std::vector<const char *> const &);
 
-	static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanBaseApplication::debugCallback(
+	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT,
 		VkDebugUtilsMessageTypeFlagsEXT,
 		const VkDebugUtilsMessengerCallbackDataEXT *,
