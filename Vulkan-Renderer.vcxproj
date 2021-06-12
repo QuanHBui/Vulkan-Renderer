@@ -161,6 +161,7 @@
     <ClCompile Include="src\VulkanBuffer.cpp" />
     <ClCompile Include="src\VulkanDevices.cpp" />
     <ClCompile Include="src\VulkanGraphicsApplication.cpp" />
+    <ClCompile Include="src\VulkanTexture.cpp" />
     <ClCompile Include="src\VulkanUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -169,8 +170,8 @@
     <ClInclude Include="include\VulkanBuffer.h" />
     <ClInclude Include="include\VulkanDevices.h" />
     <ClInclude Include="include\VulkanGraphicsApplication.h" />
+    <ClInclude Include="include\VulkanTexture.h" />
     <ClInclude Include="include\VulkanUtils.h" />
-    <ClInclude Include="VulkanTexture.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

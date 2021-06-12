@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef VULKAN_BUFFER_H
 #define VULKAN_BUFFER_H
 
@@ -9,31 +11,34 @@
  */
 class VulkanBuffer
 {
-private:
-	VkBuffer mBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory mBufferMemory = VK_NULL_HANDLE;
-
-	VkDevice mLogicalDevice = VK_NULL_HANDLE;
-	VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
-
-	uint32_t findMemoryType(VkPhysicalDevice const &, uint32_t, VkMemoryPropertyFlags);
-
 public:
 	VulkanBuffer() = default;
 
+	// Alocate buffer without uploading data
 	explicit VulkanBuffer(
 		VkDevice,
 		VkPhysicalDevice,
 		VkDeviceSize,
 		VkBufferUsageFlags,
-		VkMemoryPropertyFlags);
+		VkMemoryPropertyFlags
+	);
 
 	VulkanBuffer(VulkanBuffer const &vulkanBuffer) = delete;
 
+	void uploadData(void *, VkDeviceSize);
 	void cleanUpBuffer();
 
 	inline VkBuffer getBuffer() const { return mBuffer; }
 	inline VkDeviceMemory getBufferMemory() const { return mBufferMemory; }
+
+private:
+	uint32_t findMemoryType(VkPhysicalDevice const &, uint32_t, VkMemoryPropertyFlags);
+
+	VkBuffer mBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory mBufferMemory = VK_NULL_HANDLE;
+
+	VkDevice mLogicalDevice = VK_NULL_HANDLE;
+	VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
 };
 
 #endif // VULKAN_BUFFER_H

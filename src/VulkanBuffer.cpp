@@ -8,7 +8,7 @@
  * Graphics cards can offer different types of memory to allocate from, we need to find the right
  *  type of memory to use to allocate our buffer.
  *
- * @param: typeFilter	specify the bit field of memory types that are suitable
+ * @param: typeFilter - specify the bit field of memory types that are suitable
  */
 uint32_t VulkanBuffer::findMemoryType(
 	VkPhysicalDevice const &physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties)
@@ -77,6 +77,15 @@ VulkanBuffer::VulkanBuffer(
 
 	// Associate the memory with the buffer
 	vkBindBufferMemory(logicalDevice, mBuffer, mBufferMemory, 0);
+}
+
+void VulkanBuffer::uploadData(void *data, VkDeviceSize size)
+{
+	void *pMappedMemory = nullptr;
+
+	vkMapMemory(mLogicalDevice, mBufferMemory, 0, size, 0, &pMappedMemory);
+	memcpy(pMappedMemory, data, static_cast<size_t>(size));
+	vkUnmapMemory(mLogicalDevice, mBufferMemory);
 }
 
 void VulkanBuffer::cleanUpBuffer()
