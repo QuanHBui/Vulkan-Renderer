@@ -159,6 +159,7 @@
     <ClCompile Include="src\Vertex.cpp" />
     <ClCompile Include="src\VulkanBaseApplication.cpp" />
     <ClCompile Include="src\VulkanBuffer.cpp" />
+    <ClCompile Include="src\VulkanCommandBuffers.cpp" />
     <ClCompile Include="src\VulkanDevices.cpp" />
     <ClCompile Include="src\VulkanGraphicsApplication.cpp" />
     <ClCompile Include="src\VulkanTexture.cpp" />
@@ -168,6 +169,7 @@
     <ClInclude Include="include\Vertex.h" />
     <ClInclude Include="include\VulkanBaseApplication.h" />
     <ClInclude Include="include\VulkanBuffer.h" />
+    <ClInclude Include="include\VulkanCommandBuffers.h" />
     <ClInclude Include="include\VulkanDevices.h" />
     <ClInclude Include="include\VulkanGraphicsApplication.h" />
     <ClInclude Include="include\VulkanTexture.h" />

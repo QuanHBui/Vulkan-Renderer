@@ -24,6 +24,7 @@
 
 #include "VulkanBaseApplication.h"
 #include "VulkanBuffer.h"
+#include "VulkanCommandBuffers.h"
 #include "Vertex.h"
 
 #ifdef _MSC_VER
@@ -1037,27 +1038,13 @@ private:
 	}
 
 	/**
-	 * Memory transfer between buffers requires command buffers, similarly to drawing commands. Here,
+	 * Memory transfer between buffers requires command buffers, similar to drawing commands. Here,
 	 *  we must allocate a temporary command buffer. To optimize, a seperate command pool can be
 	 *  created for these short-lived command buffers.
 	 */
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 	{
-		VkCommandBufferAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandPool = commandPool;
-		allocInfo.commandBufferCount = 1;
-
-		VkCommandBuffer commandBuffer;
-		vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
-
-		// Start recording the command buffer
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;	// We are going to use this command buffer once
-
-		vkBeginCommandBuffer(commandBuffer, &beginInfo);
+		VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
 		VkBufferCopy copyRegion{};
 		copyRegion.srcOffset = 0;
@@ -1065,20 +1052,7 @@ private:
 		copyRegion.size = size;	// Size of the buffer being copied
 		vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-		// Stop recording
-		vkEndCommandBuffer(commandBuffer);
-
-		// Submit and execute the command buffer
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffer;
-
-		vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);	// We are not using fence
-		vkQueueWaitIdle(graphicsQueue);	// Wait for this transfer to complete
-
-		// Clean up our temporary command buffer
-		vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+		endSingleTimeCommands(device, commandPool, graphicsQueue, commandBuffer);
 	}
 
 	/**
@@ -1224,7 +1198,7 @@ private:
 			renderPassInfo.renderArea.offset = { 0, 0 };
 			renderPassInfo.renderArea.extent = swapChainExtent;
 
-			VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };		// Load operation for color attachment: we clear color with 100% opacity black
+			VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };	// Load operation for color attachment: we clear color with 100% opacity black
 			renderPassInfo.clearValueCount = 1;
 			renderPassInfo.pClearValues = &clearColor;
 

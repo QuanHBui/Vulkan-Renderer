@@ -8,12 +8,14 @@
 #include "VulkanBuffer.h"
 
 // Maybe one texture can hold multiple images?
-class VulkanTexture
+class VulkanTexture : public VulkanBaseObject
 {
 public:
-	VulkanTexture(const char *, VkDevice, VkPhysicalDevice);
+	VulkanTexture(const char *, VkDevice, VkPhysicalDevice, VkMemoryPropertyFlags);
 
 private:
+	VkImage mTextureImage;
+	VkDeviceMemory mTextureImageMemory;
 };
 
 #endif // VULKAN_TEXTURE_H

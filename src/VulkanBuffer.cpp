@@ -10,7 +10,7 @@
  *
  * @param: typeFilter - specify the bit field of memory types that are suitable
  */
-uint32_t VulkanBuffer::findMemoryType(
+uint32_t VulkanBaseObject::findMemoryType(
 	VkPhysicalDevice const &physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
 	// Query info about the available types of memory
@@ -42,12 +42,14 @@ VulkanBuffer::VulkanBuffer(
 	VkPhysicalDevice physicalDevice,
 	VkDeviceSize size,
 	VkBufferUsageFlags usage,
-	VkMemoryPropertyFlags properties) :
-	mLogicalDevice(logicalDevice), mPhysicalDevice(physicalDevice)
+	VkMemoryPropertyFlags properties)
 {
 	// A logical device and physical device must be created prior to create a buffer
-	assert(mLogicalDevice != VK_NULL_HANDLE);
-	assert(mPhysicalDevice != VK_NULL_HANDLE);
+	assert(logicalDevice != VK_NULL_HANDLE);
+	assert(physicalDevice != VK_NULL_HANDLE);
+
+	mLogicalDevice = logicalDevice;
+	mPhysicalDevice = physicalDevice;
 
 	//============================ Create a buffer object ============================
 	VkBufferCreateInfo bufferInfo{};
@@ -69,7 +71,7 @@ VulkanBuffer::VulkanBuffer(
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = findMemoryType(
-		physicalDevice, memRequirements.memoryTypeBits, properties);
+		mPhysicalDevice, memRequirements.memoryTypeBits, properties);
 
 	if (vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mBufferMemory) != VK_SUCCESS) {
 		throw std::runtime_error("[ERROR] Failed to allocate buffer memory!");
