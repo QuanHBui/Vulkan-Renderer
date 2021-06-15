@@ -6,6 +6,7 @@
 #include <stb_image.h>
 
 #include "VulkanCommandBuffers.h"
+#include "VulkanImageView.h"
 
 namespace vkTextureUtils
 {
@@ -42,6 +43,8 @@ VulkanTexture::VulkanTexture(
 	mFileName = fileName;
 
 	createTextureImage(properties);
+	createTextureImageView();
+	createTextureSampler();
 }
 
 // vkCmdCopyBufferToImage requires the image to be in the right layout first. This function will change the layout of an
@@ -201,5 +204,49 @@ void VulkanTexture::createTextureImage(VkMemoryPropertyFlags properties)
 
 void VulkanTexture::createTextureImageView()
 {
+	mTextureImageView = createImageView(mLogicalDevice, mTextureImage, VK_FORMAT_R8G8B8A8_SRGB);
+}
 
+void VulkanTexture::createTextureSampler()
+{
+	VkSamplerCreateInfo samplerInfo{};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+
+	samplerInfo.magFilter = VK_FILTER_LINEAR; // For when oversampling
+	samplerInfo.minFilter = VK_FILTER_LINEAR; // For when undersampling
+
+	// What happen when going beyond the image dimension
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+	// Enable/Disable anisotropic filtering. Performance hit.
+	samplerInfo.anisotropyEnable = VK_TRUE;
+
+	// Query and use the maximum amount of texels calculate the final color. Hardeware dependent.
+	VkPhysicalDeviceProperties properties{};
+	vkGetPhysicalDeviceProperties(mPhysicalDevice, &properties);
+	samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+
+	// Specify which color to return when sampling beyond the image when in
+	//  clamp to border mode
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+
+	// Specify to use normalized u,v,w coordinates
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+	// Mainly for percentage-closer filtering
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+	// Mipmapping
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+
+	if (vkCreateSampler(mLogicalDevice, &samplerInfo, nullptr, &mTextureSampler) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create texture sampler!");
+	}
 }

@@ -15,6 +15,9 @@ public:
 
 	void cleanUp()
 	{
+		vkDestroySampler(mLogicalDevice, mTextureSampler, nullptr);
+		vkDestroyImageView(mLogicalDevice, mTextureImageView, nullptr);
+
 		vkDestroyImage(mLogicalDevice, mTextureImage, nullptr);
 		vkFreeMemory(mLogicalDevice, mTextureImageMemory, nullptr);
 	}
@@ -24,6 +27,7 @@ private:
 	void copyBufferToImage(VkBuffer);
 	void createTextureImage(VkMemoryPropertyFlags);
 	void createTextureImageView();
+	void createTextureSampler();
 
 	VkImage mTextureImage = VK_NULL_HANDLE;
 	VkDeviceMemory mTextureImageMemory = VK_NULL_HANDLE;
@@ -31,6 +35,9 @@ private:
 
 	VkCommandPool mCommandPool = VK_NULL_HANDLE;
 	VkQueue mQueue = VK_NULL_HANDLE;
+
+	VkImageView mTextureImageView = VK_NULL_HANDLE;
+	VkSampler mTextureSampler = VK_NULL_HANDLE;
 
 	std::string mFileName;
 };

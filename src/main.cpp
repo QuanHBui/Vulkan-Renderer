@@ -326,6 +326,7 @@ private:
 		// Application needs dedicated GPU that support geometry shaders with certain queue family and extension
 		return	(deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) &&
 				deviceFeatures.geometryShader &&
+				deviceFeatures.samplerAnisotropy &&
 				indices.isComplete() &&
 				extensionsSupported &&
 				swapChainAdequate;
@@ -434,6 +435,7 @@ private:
 
 		// Specify the set of device features that we'll be using
 		VkPhysicalDeviceFeatures deviceFeatures{};
+		deviceFeatures.samplerAnisotropy = VK_TRUE;
 
 		// Create a logical device
 		VkDeviceCreateInfo createInfo{};
