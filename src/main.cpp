@@ -8,7 +8,7 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>	// Precise timekeeping
+#include <chrono> // Precise timekeeping
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -22,10 +22,11 @@
 #include <string>
 #include <vector>
 
+#include "Vertex.h"
 #include "VulkanBaseApplication.h"
 #include "VulkanBuffer.h"
 #include "VulkanCommandBuffers.h"
-#include "Vertex.h"
+#include "VulkanImageView.h"
 
 #ifdef _MSC_VER
 constexpr char precompiled_shaders_dir[] = "../../resources/shaders/";
@@ -622,38 +623,13 @@ private:
 		swapChainExtent = extent;
 	}
 
-	void createImageViews()
+	void createImageViewsForSwapChain()
 	{
 		swapChainImageViews.resize(swapChainImages.size());
 
-		for (size_t i = 0; i < swapChainImages.size(); ++i) {
-			// Fill in the create info struct for image view
-			VkImageViewCreateInfo createInfo{};
-			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			createInfo.image = swapChainImages[i];
-
-			// Specify how image data should be interpreted
-			createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;	// Treat image as 2D texture
-			createInfo.format = swapChainImageFormat;
-
-			// Swizzle the color channels around. We stick to default mapping.
-			createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-			createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-			createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-			createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-			// Describe what the image's purpose is and which part of the image should be accessed
-			// In this case, images are used as color targets without mipmapping levels or multiple layers.
-			createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			createInfo.subresourceRange.baseMipLevel = 0;
-			createInfo.subresourceRange.levelCount = 1;
-			createInfo.subresourceRange.baseArrayLayer = 0;
-			createInfo.subresourceRange.layerCount = 1;
-
-			// Actually create a basic image view object for every image in the swap chain
-			if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-				throw std::runtime_error("[ERROR] Failed to create image views!");
-			}
+		for (size_t i = 0; i < swapChainImages.size(); ++i)
+		{
+			swapChainImageViews[i] = createImageView(device, swapChainImages[i], swapChainImageFormat);
 		}
 	}
 
@@ -1273,7 +1249,7 @@ private:
 
 		// glm was original made for OpenGL, where Y coordinate of the clip coordinates is inverted, we need to flip
 		//  this dimension for Vulkan
-		ubo.proj[1][1] *= -1;	// We flip the sign on the scaling factor of the Y axis in the projection matrix
+		ubo.proj[1][1] *= -1; // We flip the sign on the scaling factor of the Y axis in the projection matrix
 
 		void *data;
 		vkMapMemory(device, mpUniformBuffers[currentImage]->getBufferMemory(), 0, sizeof(ubo), 0, &data);
@@ -1412,15 +1388,15 @@ private:
 			glfwWaitEvents();
 		}
 
-		vkDeviceWaitIdle(device);	// Wait to make sure that we don't use resources that may still be in use
+		vkDeviceWaitIdle(device); // Wait to make sure that we don't use resources that may still be in use
 
 		cleanupSwapChain();
 
 		createSwapChain();
-		createImageViews();			// Image views are based directly on the number of swap chain images
-		createRenderPass();			// Render pass is dependent on the format of swap chain image. However, it's rare that image format would change during window resize
+		createImageViewsForSwapChain(); // Image views are based directly on the number of swap chain images
+		createRenderPass(); // Render pass is dependent on the format of swap chain image. However, it's rare that image format would change during window resize
 
-		createGraphicsPipeline();	// Viewport and scissor rectangle size are specified during graphics pipeline creation
+		createGraphicsPipeline(); // Viewport and scissor rectangle size are specified during graphics pipeline creation
 		createFramebuffers();
 		createUniformBuffers();
 		createDescriptorPool();
@@ -1437,7 +1413,7 @@ private:
 		createLogicalDevice();
 
 		createSwapChain();
-		createImageViews();
+		createImageViewsForSwapChain();
 		createRenderPass();
 		createDescriptorSetLayout();
 

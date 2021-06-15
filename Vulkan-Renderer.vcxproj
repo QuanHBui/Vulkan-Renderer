@@ -162,6 +162,7 @@
     <ClCompile Include="src\VulkanCommandBuffers.cpp" />
     <ClCompile Include="src\VulkanDevices.cpp" />
     <ClCompile Include="src\VulkanGraphicsApplication.cpp" />
+    <ClCompile Include="src\VulkanImageView.cpp" />
     <ClCompile Include="src\VulkanTexture.cpp" />
     <ClCompile Include="src\VulkanUtils.cpp" />
   </ItemGroup>
@@ -172,6 +173,7 @@
     <ClInclude Include="include\VulkanCommandBuffers.h" />
     <ClInclude Include="include\VulkanDevices.h" />
     <ClInclude Include="include\VulkanGraphicsApplication.h" />
+    <ClInclude Include="include\VulkanImageView.h" />
     <ClInclude Include="include\VulkanTexture.h" />
     <ClInclude Include="include\VulkanUtils.h" />
   </ItemGroup>

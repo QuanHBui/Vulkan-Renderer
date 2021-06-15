@@ -11,7 +11,7 @@
 class VulkanTexture : public VulkanBaseObject
 {
 public:
-	VulkanTexture(const char *, VkDevice, VkPhysicalDevice, VkMemoryPropertyFlags, VkCommandPool, VkQueue);
+	VulkanTexture(std::string, VkDevice, VkPhysicalDevice, VkMemoryPropertyFlags, VkCommandPool, VkQueue);
 
 	void cleanUp()
 	{
@@ -22,6 +22,8 @@ public:
 private:
 	void transitionImageLayout(VkFormat, VkImageLayout, VkImageLayout);
 	void copyBufferToImage(VkBuffer);
+	void createTextureImage(VkMemoryPropertyFlags);
+	void createTextureImageView();
 
 	VkImage mTextureImage = VK_NULL_HANDLE;
 	VkDeviceMemory mTextureImageMemory = VK_NULL_HANDLE;
@@ -29,6 +31,8 @@ private:
 
 	VkCommandPool mCommandPool = VK_NULL_HANDLE;
 	VkQueue mQueue = VK_NULL_HANDLE;
+
+	std::string mFileName;
 };
 
 #endif // VULKAN_TEXTURE_H
