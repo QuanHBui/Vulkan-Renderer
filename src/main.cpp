@@ -775,7 +775,7 @@ private:
 		for (size_t i = 0; i < swapChainImages.size(); ++i) {
 			// Info about the buffer object that descriptor refers to
 			VkDescriptorBufferInfo bufferInfo{};
-			bufferInfo.buffer = mpUniformBuffers[i]->getBuffer();
+			bufferInfo.buffer = mpUniformBuffers[i]->getBufferHandle();
 			bufferInfo.offset = 0;
 			bufferInfo.range = sizeof(UniformBufferObject);
 
@@ -1101,7 +1101,7 @@ private:
 		vkUnmapMemory(device, stagingBuffer.getBufferMemory());
 
 		//================== Transfer data from staging buffer to vertex buffer ==================
-		copyBuffer(stagingBuffer.getBuffer(), mpVertexBuffer->getBuffer(), bufferSize);
+		copyBuffer(stagingBuffer.getBufferHandle(), mpVertexBuffer->getBufferHandle(), bufferSize);
 
 		// Clean up staging buffer
 		stagingBuffer.cleanUpBuffer();
@@ -1132,7 +1132,7 @@ private:
 			memcpy(data, indices.data(), (size_t) bufferSize);
 		vkUnmapMemory(device, stagingBuffer.getBufferMemory());
 
-		copyBuffer(stagingBuffer.getBuffer(), mpIndexBuffer->getBuffer(), bufferSize);
+		copyBuffer(stagingBuffer.getBufferHandle(), mpIndexBuffer->getBufferHandle(), bufferSize);
 
 		stagingBuffer.cleanUpBuffer();
 	}
@@ -1208,12 +1208,12 @@ private:
 				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 				// Bind the vertex buffer to the graphic pipeline
-				VkBuffer vertexBuffers[] = { mpVertexBuffer->getBuffer() };
+				VkBuffer vertexBuffers[] = { mpVertexBuffer->getBufferHandle() };
 				VkDeviceSize offsets[] = { 0 };
 				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
 				// Bind index buffer
-				vkCmdBindIndexBuffer(commandBuffers[i], mpIndexBuffer->getBuffer(), 0, VK_INDEX_TYPE_UINT16);
+				vkCmdBindIndexBuffer(commandBuffers[i], mpIndexBuffer->getBufferHandle(), 0, VK_INDEX_TYPE_UINT16);
 
 				// Bind the right descriptor set for each swap chain image to the descriptor in the shader
 				// We also specify that we bind this descriptor set to the graphics pipeline, as opposed to compute pipeline

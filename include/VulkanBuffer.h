@@ -39,7 +39,7 @@ public:
 	void uploadData(void *, VkDeviceSize);
 	void cleanUpBuffer();
 
-	VkBuffer getBuffer() const { return mBuffer; }
+	VkBuffer getBufferHandle() const { return mBuffer; }
 	VkDeviceMemory getBufferMemory() const { return mBufferMemory; }
 
 private:
