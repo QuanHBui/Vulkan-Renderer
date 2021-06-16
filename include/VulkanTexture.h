@@ -11,7 +11,11 @@
 class VulkanTexture : public VulkanBaseObject
 {
 public:
+	VulkanTexture() = default;
 	VulkanTexture(std::string, VkDevice, VkPhysicalDevice, VkMemoryPropertyFlags, VkCommandPool, VkQueue);
+
+	VkImageView getTextureImageView() const { return mTextureImageView; }
+	VkSampler getTextureSampler() const { return mTextureSampler; }
 
 	void cleanUp()
 	{

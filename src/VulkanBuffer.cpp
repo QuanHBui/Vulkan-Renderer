@@ -90,7 +90,7 @@ void VulkanBuffer::uploadData(void *data, VkDeviceSize size)
 	vkUnmapMemory(mLogicalDevice, mBufferMemory);
 }
 
-void VulkanBuffer::cleanUpBuffer()
+void VulkanBuffer::cleanUp()
 {
 	vkDestroyBuffer(mLogicalDevice, mBuffer, nullptr);
 	vkFreeMemory(mLogicalDevice, mBufferMemory, nullptr);

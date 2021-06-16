@@ -200,6 +200,8 @@ void VulkanTexture::createTextureImage(VkMemoryPropertyFlags properties)
 
 	transitionImageLayout(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	copyBufferToImage(stagingBuffer.getBufferHandle());
+
+	stagingBuffer.cleanUp();
 }
 
 void VulkanTexture::createTextureImageView()

@@ -7,8 +7,6 @@
 
 class VulkanBaseObject
 {
-public:
-
 protected:
 	uint32_t findMemoryType(VkPhysicalDevice const &, uint32_t, VkMemoryPropertyFlags);
 
@@ -37,7 +35,7 @@ public:
 	VulkanBuffer(VulkanBuffer const &vulkanBuffer) = delete;
 
 	void uploadData(void *, VkDeviceSize);
-	void cleanUpBuffer();
+	void cleanUp();
 
 	VkBuffer getBufferHandle() const { return mBuffer; }
 	VkDeviceMemory getBufferMemory() const { return mBufferMemory; }

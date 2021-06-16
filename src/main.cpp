@@ -27,11 +27,12 @@
 #include "VulkanBuffer.h"
 #include "VulkanCommandBuffers.h"
 #include "VulkanImageView.h"
+#include "VulkanTexture.h"
 
 #ifdef _MSC_VER
-constexpr char precompiled_shaders_dir[] = "../../resources/shaders/";
+constexpr char resource_dir[] = "../../resources/";
 #else
-constexpr char precompiled_shaders_dir[] = "../resources/shaders/";
+constexpr char resource_dir[] = "../resources/";
 #endif
 
 const uint32_t WIDTH = 800, HEIGHT = 600;
@@ -104,52 +105,6 @@ public:
 	}
 
 private:
-	GLFWwindow *window;
-
-	VulkanBaseApplication baseApp;
-	VkInstance instance;
-
-	VkSurfaceKHR surface;	// Connect between Vulkan and window system
-
-	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-	VkDevice device;		// Logical device handle
-
-	VkQueue graphicsQueue;
-	VkQueue presentQueue;
-
-	VkSwapchainKHR swapChain;
-	std::vector<VkImage> swapChainImages;	// Handles of images in the swap chain
-	VkFormat swapChainImageFormat;
-	VkExtent2D swapChainExtent;
-	std::vector<VkImageView> swapChainImageViews;
-
-	VkRenderPass renderPass;
-
-	VkDescriptorSetLayout mDescriptorSetLayout;
-	VkPipelineLayout pipelineLayout;
-	VkPipeline graphicsPipeline;
-
-	std::vector<VkFramebuffer> swapChainFramebuffers;
-
-	VkCommandPool commandPool;
-	std::vector<VkCommandBuffer> commandBuffers;
-
-	std::vector<VkSemaphore> imageAvailableSemaphores;	// Signals an image has been acquired and ready for rendering
-	std::vector<VkSemaphore> renderFinishedSemaphores;	// Signals rendering has finished and presentation can happen
-	std::vector<VkFence> inFlightFences;				// To perform CPU-GPU synchronization
-	std::vector<VkFence> imagesInFlight;				// Keep track which swap chain image the frame in flight is using
-	size_t currentFrame = 0;	// Keeps track of current frame so that we use the correct semaphore objects
-
-	bool framebufferResized = false;
-
-	// There must be a better way for "delayed" initialization
-	std::shared_ptr<VulkanBuffer> mpVertexBuffer = nullptr;
-	std::shared_ptr<VulkanBuffer> mpIndexBuffer = nullptr;
-	std::vector<std::shared_ptr<VulkanBuffer>> mpUniformBuffers;	// Multiple uniform buffers
-
-	VkDescriptorPool mDescriptorPool;
-	std::vector<VkDescriptorSet> mDescriptorSets;
-
 	void initWindow()
 	{
 		glfwInit();
@@ -683,6 +638,7 @@ private:
 		}
 	}
 
+	// Create and bind descriptors for ubo and sampler
 	void createDescriptorSetLayout()
 	{
 		VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -692,11 +648,20 @@ private:
 		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	// Vertex shader stage is going to reference this descriptor
 		uboLayoutBinding.pImmutableSamplers = nullptr;	// For image sampling related descriptor
 
+		VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+		samplerLayoutBinding.binding = 1;
+		samplerLayoutBinding.descriptorCount = 1;
+		samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		samplerLayoutBinding.pImmutableSamplers = nullptr;
+		samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; // Intend to use sampler descriptor in fragment shader
+
+		std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+
 		// All descriptor bindings are combined into a single VkDescriptorSetLayout
 		VkDescriptorSetLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutInfo.bindingCount = 1;
-		layoutInfo.pBindings = &uboLayoutBinding;
+		layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+		layoutInfo.pBindings = bindings.data();
 
 		if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &mDescriptorSetLayout) != VK_SUCCESS) {
 			throw std::runtime_error("[ERROR] Failed to create descriptor set layout!");
@@ -709,16 +674,20 @@ private:
 	void createDescriptorPool()
 	{
 		// Describe which descriptor types our descriptor sets are going to contain and how many
-		VkDescriptorPoolSize poolSize{};
-		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		poolSize.descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+		std::array < VkDescriptorPoolSize, 2> poolSizes{};
+
+		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+
+		poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 
 		// Allocate one descriptor for every frame
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		poolInfo.poolSizeCount = 1;
-		poolInfo.pPoolSizes = &poolSize;
-		poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());	// Specify the max number of descriptor sets may be allocated
+		poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+		poolInfo.pPoolSizes = poolSizes.data();
+		poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()); // Specify the max number of descriptor sets may be allocated
 
 		if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &mDescriptorPool) != VK_SUCCESS) {
 			throw std::runtime_error("[ERROR] Failed to create descriptor pool!");
@@ -739,9 +708,9 @@ private:
 		std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), mDescriptorSetLayout);
 		VkDescriptorSetAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = mDescriptorPool;	// Descriptor pool to allocate the sets from
-		allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());	// Number of sets to allocate
-		allocInfo.pSetLayouts = layouts.data();	// Descriptor layout to base the sets on
+		allocInfo.descriptorPool = mDescriptorPool; // Descriptor pool to allocate the sets from
+		allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size()); // Number of sets to allocate
+		allocInfo.pSetLayouts = layouts.data(); // Descriptor layout to base the sets on
 
 		mDescriptorSets.resize(swapChainImages.size());
 
@@ -757,14 +726,20 @@ private:
 			bufferInfo.offset = 0;
 			bufferInfo.range = sizeof(UniformBufferObject);
 
+			// Info about the image that descriptor refers to
+			VkDescriptorImageInfo imageInfo{};
+			imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageInfo.imageView = mTexture.getTextureImageView();
+			imageInfo.sampler = mTexture.getTextureSampler();
+
 			// Tell Vulkan driver how configuration of descriptors is updated
 			VkWriteDescriptorSet descriptorWrite{};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrite.dstSet = mDescriptorSets[i];	// Specify descriptor set to update
+			descriptorWrite.dstSet = mDescriptorSets[i]; // Specify descriptor set to update
 			descriptorWrite.dstBinding = 0;
-			descriptorWrite.dstArrayElement = 0;	// First index in the descriptor array to update; our descriptors aren't array
-			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;	// Specify this descriptor refers to ubo
-			descriptorWrite.descriptorCount = 1;	// How many descriptor want to update
+			descriptorWrite.dstArrayElement = 0; // First index in the descriptor array to update; our descriptors aren't array
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; // Specify this descriptor refers to ubo
+			descriptorWrite.descriptorCount = 1; // How many descriptor want to update
 			descriptorWrite.pBufferInfo = &bufferInfo;
 			descriptorWrite.pImageInfo = nullptr;
 			descriptorWrite.pTexelBufferView = nullptr;
@@ -829,8 +804,8 @@ private:
 	 */
 	void createGraphicsPipeline()
 	{
-		std::vector<char> vertShaderCode = readFile(std::string(precompiled_shaders_dir) + "vert.spv");
-		std::vector<char> fragShaderCode = readFile(std::string(precompiled_shaders_dir) + "frag.spv");
+		std::vector<char> vertShaderCode = readFile(std::string(resource_dir) + "shaders/vert.spv");
+		std::vector<char> fragShaderCode = readFile(std::string(resource_dir) + "shaders/frag.spv");
 
 		VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
 		VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -1015,6 +990,11 @@ private:
 		}
 	}
 
+	void loadTexture(std::string imageFileName)
+	{
+		mTexture = VulkanTexture(imageFileName, device, physicalDevice, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, commandPool, graphicsQueue);
+	}
+
 	/**
 	 * Memory transfer between buffers requires command buffers, similar to drawing commands. Here,
 	 *  we must allocate a temporary command buffer. To optimize, a seperate command pool can be
@@ -1082,7 +1062,7 @@ private:
 		copyBuffer(stagingBuffer.getBufferHandle(), mpVertexBuffer->getBufferHandle(), bufferSize);
 
 		// Clean up staging buffer
-		stagingBuffer.cleanUpBuffer();
+		stagingBuffer.cleanUp();
 	}
 
 	void createIndexBuffer()
@@ -1112,7 +1092,7 @@ private:
 
 		copyBuffer(stagingBuffer.getBufferHandle(), mpIndexBuffer->getBufferHandle(), bufferSize);
 
-		stagingBuffer.cleanUpBuffer();
+		stagingBuffer.cleanUp();
 	}
 
 	/**
@@ -1365,7 +1345,7 @@ private:
 
 		// We clean up uniform buffers here because it is dependent on the number of swap chain images
 		for (std::shared_ptr<VulkanBuffer> &pUniformBuffer : mpUniformBuffers) {
-			pUniformBuffer->cleanUpBuffer();
+			pUniformBuffer->cleanUp();
 		}
 
 		vkDestroyDescriptorPool(device, mDescriptorPool, nullptr);
@@ -1424,6 +1404,8 @@ private:
 
 		createCommandPool();
 
+		loadTexture(std::string(resource_dir) + "textures/statue.jpg");
+
 		createVertexBuffer();
 		createIndexBuffer();
 		createUniformBuffers();
@@ -1450,10 +1432,12 @@ private:
 	{
 		cleanupSwapChain();
 
+		mTexture.cleanUp();
+
 		vkDestroyDescriptorSetLayout(device, mDescriptorSetLayout, nullptr);
 
-		mpIndexBuffer->cleanUpBuffer();
-		mpVertexBuffer->cleanUpBuffer();
+		mpIndexBuffer->cleanUp();
+		mpVertexBuffer->cleanUp();
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -1470,6 +1454,54 @@ private:
 		glfwDestroyWindow(window);
 		glfwTerminate();
 	}
+
+	GLFWwindow *window;
+
+	VulkanBaseApplication baseApp;
+	VkInstance instance;
+
+	VkSurfaceKHR surface;	// Connect between Vulkan and window system
+
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+	VkDevice device;		// Logical device handle
+
+	VkQueue graphicsQueue;
+	VkQueue presentQueue;
+
+	VkSwapchainKHR swapChain;
+	std::vector<VkImage> swapChainImages;	// Handles of images in the swap chain
+	VkFormat swapChainImageFormat;
+	VkExtent2D swapChainExtent;
+	std::vector<VkImageView> swapChainImageViews;
+
+	VkRenderPass renderPass;
+
+	VkDescriptorSetLayout mDescriptorSetLayout;
+	VkPipelineLayout pipelineLayout;
+	VkPipeline graphicsPipeline;
+
+	std::vector<VkFramebuffer> swapChainFramebuffers;
+
+	VkCommandPool commandPool;
+	std::vector<VkCommandBuffer> commandBuffers;
+
+	std::vector<VkSemaphore> imageAvailableSemaphores;	// Signals an image has been acquired and ready for rendering
+	std::vector<VkSemaphore> renderFinishedSemaphores;	// Signals rendering has finished and presentation can happen
+	std::vector<VkFence> inFlightFences;				// To perform CPU-GPU synchronization
+	std::vector<VkFence> imagesInFlight;				// Keep track which swap chain image the frame in flight is using
+	size_t currentFrame = 0;	// Keeps track of current frame so that we use the correct semaphore objects
+
+	bool framebufferResized = false;
+
+	// There must be a better way for "delayed" initialization
+	std::shared_ptr<VulkanBuffer> mpVertexBuffer = nullptr;
+	std::shared_ptr<VulkanBuffer> mpIndexBuffer = nullptr;
+	std::vector<std::shared_ptr<VulkanBuffer>> mpUniformBuffers;	// Multiple uniform buffers
+
+	VkDescriptorPool mDescriptorPool;
+	std::vector<VkDescriptorSet> mDescriptorSets;
+
+	VulkanTexture mTexture;
 };
 
 int main()
