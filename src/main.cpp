@@ -81,10 +81,10 @@ struct UniformBufferObject
 
 // This is our triangle vertex data
 const std::vector<Vertex> vertices = {
-	{{-0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-	{{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-	{{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
-	{{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}}
+	{ { -0.5f, -0.5f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
+	{ {  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
+	{ {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+	{ { -0.5f,  0.5f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } }
 };
 
 // Our triangles are drawn counterclockwise. Hopefully, we are using fewer than
@@ -733,19 +733,26 @@ private:
 			imageInfo.sampler = mTexture.getTextureSampler();
 
 			// Tell Vulkan driver how configuration of descriptors is updated
-			VkWriteDescriptorSet descriptorWrite{};
-			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrite.dstSet = mDescriptorSets[i]; // Specify descriptor set to update
-			descriptorWrite.dstBinding = 0;
-			descriptorWrite.dstArrayElement = 0; // First index in the descriptor array to update; our descriptors aren't array
-			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; // Specify this descriptor refers to ubo
-			descriptorWrite.descriptorCount = 1; // How many descriptor want to update
-			descriptorWrite.pBufferInfo = &bufferInfo;
-			descriptorWrite.pImageInfo = nullptr;
-			descriptorWrite.pTexelBufferView = nullptr;
+			std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+
+			descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[0].dstSet = mDescriptorSets[i]; // Specify descriptor set to update
+			descriptorWrites[0].dstBinding = 0;
+			descriptorWrites[0].dstArrayElement = 0; // First index in the descriptor array to update; our descriptors aren't array
+			descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; // Specify this descriptor refers to ubo
+			descriptorWrites[0].descriptorCount = 1; // How many descriptor want to update
+			descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+			descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[1].dstSet = mDescriptorSets[i];
+			descriptorWrites[1].dstBinding = 1;
+			descriptorWrites[1].dstArrayElement = 0;
+			descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[1].descriptorCount = 1;
+			descriptorWrites[1].pImageInfo = &imageInfo;
 
 			// Apply the update
-			vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+			vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 		}
 	}
 
@@ -829,7 +836,7 @@ private:
 		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
 		VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
-		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = Vertex::getAttributeDescriptions();
+		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = Vertex::getAttributeDescriptions();
 
 		vertexInputInfo.vertexBindingDescriptionCount = 1;
 		vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;

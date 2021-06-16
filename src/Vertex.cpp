@@ -27,14 +27,14 @@ VkVertexInputBindingDescription Vertex::getBindingDescription()
  * This struct, VkVertexInputAttributeDescription, shows the GPU how to read
  *  data per attribute.
  */
-std::array<VkVertexInputAttributeDescription, 2> Vertex::getAttributeDescriptions()
+std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescriptions()
 {
-	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 
 	// Position attibute
-	attributeDescriptions[0].binding = 0;		// Which binding per-vertex data from
-	attributeDescriptions[0].location = 0;		// location directive specified in vertex shader
-	attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;		// vec3 format. Vulkan uses the same enumeration as color format for some reason
+	attributeDescriptions[0].binding = 0;  // Which binding per-vertex data from
+	attributeDescriptions[0].location = 0; // location directive specified in vertex shader
+	attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT; // vec3 format. Vulkan uses the same enumeration as color format for some reason
 	attributeDescriptions[0].offset = offsetof(Vertex, position);
 
 	// Color attribute
@@ -42,6 +42,11 @@ std::array<VkVertexInputAttributeDescription, 2> Vertex::getAttributeDescription
 	attributeDescriptions[1].location = 1;
 	attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
 	attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+	attributeDescriptions[2].binding = 0;
+	attributeDescriptions[2].location = 2;
+	attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+	attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
 
 	return attributeDescriptions;
 }

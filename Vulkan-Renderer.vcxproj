@@ -177,6 +177,10 @@
     <ClInclude Include="include\VulkanTexture.h" />
     <ClInclude Include="include\VulkanUtils.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="resources\shaders\simple.frag" />
+    <None Include="resources\shaders\simple.vert" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

@@ -12,3 +12,6 @@ x64/
 
 # Cmake settings for IDE (Microsoft Visual Studio)
 CMakeSettings.json
+
+# Spir-V binary
+.spv
