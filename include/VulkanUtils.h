@@ -3,6 +3,8 @@
 #ifndef VULKAN_UTILS_H
 #define VULKAN_UTILS_H
 
+#include <vector>
+
 #include <vulkan/vulkan.h>
 
 namespace vkutils
@@ -18,6 +20,13 @@ namespace vkutils
 		VkInstance,
 		VkDebugUtilsMessengerEXT,
 		const VkAllocationCallbacks *pAllocator
+	);
+
+	VkFormat findSupportedFormat(
+		VkPhysicalDevice,
+		const std::vector<VkFormat> &,
+		VkImageTiling,
+		VkFormatFeatureFlags
 	);
 }
 

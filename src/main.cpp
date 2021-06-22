@@ -3,6 +3,7 @@
 
 // Force glm::rotate to use radians as arguments
 #define GLM_FORCE_RADIANS
+#define GL_FORCE_DEPTH_ZERO_TO_ONE // Vulkan uses depth values of [0.0, 1.0]
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -26,8 +27,10 @@
 #include "VulkanBaseApplication.h"
 #include "VulkanBuffer.h"
 #include "VulkanCommandBuffers.h"
-#include "VulkanImageView.h"
+#include "VulkanDepthResources.h"
+#include "VulkanImage.h"
 #include "VulkanTexture.h"
+#include "VulkanUtils.h"
 
 #ifdef _MSC_VER
 constexpr char resource_dir[] = "../../resources/";
@@ -81,16 +84,22 @@ struct UniformBufferObject
 
 // This is our triangle vertex data
 const std::vector<Vertex> vertices = {
-	{ { -0.5f, -0.5f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
-	{ {  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
-	{ {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
-	{ { -0.5f,  0.5f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } }
+	{ { -0.5f, -0.5f,  0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+	{ {  0.5f, -0.5f,  0.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+	{ {  0.5f,  0.5f,  0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
+	{ { -0.5f,  0.5f,  0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
+
+	{ { -0.5f, -0.5f, -0.5f}, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+	{ {  0.5f, -0.5f, -0.5f}, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+	{ {  0.5f,  0.5f, -0.5f}, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
+	{ { -0.5f,  0.5f, -0.5f}, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } }
 };
 
 // Our triangles are drawn counterclockwise. Hopefully, we are using fewer than
 //  65535 unique vertices; that's why we are using uint16_t for now.
 const std::vector<uint16_t> indices = {
-	0, 1, 2, 2, 3, 0
+	0, 1, 2, 2, 3, 0,
+	4, 5, 6, 6, 7, 4
 };
 
 class HelloTriangleApplication
@@ -586,7 +595,7 @@ private:
 
 		for (size_t i = 0; i < swapChainImages.size(); ++i)
 		{
-			swapChainImageViews[i] = createImageView(device, swapChainImages[i], swapChainImageFormat);
+			swapChainImageViews[i] = createImageView(device, swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 	}
 
@@ -642,11 +651,11 @@ private:
 	void createDescriptorSetLayout()
 	{
 		VkDescriptorSetLayoutBinding uboLayoutBinding{};
-		uboLayoutBinding.binding = 0;	// Should match the descriptor in the vertex shader
-		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;	// Type of descriptor is ubo
-		uboLayoutBinding.descriptorCount = 1;	// Number of values in the array; we can bind an array of ubo's
-		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	// Vertex shader stage is going to reference this descriptor
-		uboLayoutBinding.pImmutableSamplers = nullptr;	// For image sampling related descriptor
+		uboLayoutBinding.binding = 0; // Should match the descriptor in the vertex shader
+		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; // Type of descriptor is ubo
+		uboLayoutBinding.descriptorCount = 1; // Number of values in the array; we can bind an array of ubo's
+		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // Vertex shader stage is going to reference this descriptor
+		uboLayoutBinding.pImmutableSamplers = nullptr; // For image sampling related descriptor
 
 		VkDescriptorSetLayoutBinding samplerLayoutBinding{};
 		samplerLayoutBinding.binding = 1;
@@ -674,7 +683,7 @@ private:
 	void createDescriptorPool()
 	{
 		// Describe which descriptor types our descriptor sets are going to contain and how many
-		std::array < VkDescriptorPoolSize, 2> poolSizes{};
+		std::array <VkDescriptorPoolSize, 2> poolSizes{};
 
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
@@ -821,7 +830,7 @@ private:
 		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
 		vertShaderStageInfo.module = vertShaderModule;
-		vertShaderStageInfo.pName = "main";		// Function to invoke in the shader, a.k.a the entrypoint
+		vertShaderStageInfo.pName = "main"; // Function to invoke in the shader, a.k.a the entrypoint
 
 		VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
 		fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -922,7 +931,7 @@ private:
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 1;
-		pipelineLayoutInfo.pSetLayouts = &mDescriptorSetLayout;	// Specify the descriptor set layout for vertex shader to use ubo
+		pipelineLayoutInfo.pSetLayouts = &mDescriptorSetLayout; // Specify the descriptor set layout for vertex shader to use ubo
 		pipelineLayoutInfo.pushConstantRangeCount = 0;
 		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
@@ -941,11 +950,11 @@ private:
 		pipelineInfo.pMultisampleState = &multisampling;
 		pipelineInfo.pDepthStencilState = nullptr;
 		pipelineInfo.pColorBlendState = &colorBlending;
-		pipelineInfo.pDynamicState = nullptr;	// In case you want to change some values during rendering, extremely limited
+		pipelineInfo.pDynamicState = nullptr; // In case you want to change some values during rendering, extremely limited
 		pipelineInfo.layout = pipelineLayout;
 		pipelineInfo.renderPass = renderPass;
 		pipelineInfo.subpass = 0;
-		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;	// Vulkan allows creation of new pipeline derived from existing pipeline
+		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Vulkan allows creation of new pipeline derived from existing pipeline
 		pipelineInfo.basePipelineIndex = -1;
 
 		if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
@@ -995,6 +1004,11 @@ private:
 		if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
 			throw std::runtime_error("[ERROR] Failed to create command pool!");
 		}
+	}
+
+	void createDepthResources()
+	{
+		mDepthResources = VulkanDepthResources();
 	}
 
 	void loadTexture(std::string imageFileName)
@@ -1061,9 +1075,9 @@ private:
 		//====================== Copy the vertex data to the staging buffer ======================
 		void *data;
 		// Map memory to access a region of a specified memory resource with an offset and size
-		vkMapMemory(device, stagingBuffer.getBufferMemory(), 0, bufferSize, 0, &data);
+		vkMapMemory(device, stagingBuffer.getMemoryHandle(), 0, bufferSize, 0, &data);
 			memcpy(data, vertices.data(), (size_t) bufferSize);
-		vkUnmapMemory(device, stagingBuffer.getBufferMemory());
+		vkUnmapMemory(device, stagingBuffer.getMemoryHandle());
 
 		//================== Transfer data from staging buffer to vertex buffer ==================
 		copyBuffer(stagingBuffer.getBufferHandle(), mpVertexBuffer->getBufferHandle(), bufferSize);
@@ -1093,9 +1107,9 @@ private:
 		);
 
 		void *data;
-		vkMapMemory(device, stagingBuffer.getBufferMemory(), 0, bufferSize, 0, &data);
+		vkMapMemory(device, stagingBuffer.getMemoryHandle(), 0, bufferSize, 0, &data);
 			memcpy(data, indices.data(), (size_t) bufferSize);
-		vkUnmapMemory(device, stagingBuffer.getBufferMemory());
+		vkUnmapMemory(device, stagingBuffer.getMemoryHandle());
 
 		copyBuffer(stagingBuffer.getBufferHandle(), mpIndexBuffer->getBufferHandle(), bufferSize);
 
@@ -1241,9 +1255,9 @@ private:
 		ubo.proj[1][1] *= -1; // We flip the sign on the scaling factor of the Y axis in the projection matrix
 
 		void *data;
-		vkMapMemory(device, mpUniformBuffers[currentImage]->getBufferMemory(), 0, sizeof(ubo), 0, &data);
+		vkMapMemory(device, mpUniformBuffers[currentImage]->getMemoryHandle(), 0, sizeof(ubo), 0, &data);
 			memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(device, mpUniformBuffers[currentImage]->getBufferMemory());
+		vkUnmapMemory(device, mpUniformBuffers[currentImage]->getMemoryHandle());
 	}
 
 	/**
@@ -1411,6 +1425,8 @@ private:
 
 		createCommandPool();
 
+		createDepthResources();
+
 		loadTexture(std::string(resource_dir) + "textures/statue.jpg");
 
 		createVertexBuffer();
@@ -1509,6 +1525,8 @@ private:
 	std::vector<VkDescriptorSet> mDescriptorSets;
 
 	VulkanTexture mTexture;
+
+	VulkanDepthResources mDepthResources;
 };
 
 int main()

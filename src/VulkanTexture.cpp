@@ -5,8 +5,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include "VulkanBuffer.h"
 #include "VulkanCommandBuffers.h"
-#include "VulkanImageView.h"
+#include "VulkanImage.h"
 
 namespace vkTextureUtils
 {
@@ -30,82 +31,12 @@ VulkanTexture::VulkanTexture(
 	VkMemoryPropertyFlags properties,
 	VkCommandPool commandPool,
 	VkQueue queue)
+	: VulkanImage(physicalDevice, logicalDevice, commandPool, queue)
+	, mFileName(fileName)
 {
-	assert(logicalDevice != VK_NULL_HANDLE);
-	assert(physicalDevice != VK_NULL_HANDLE);
-	assert(commandPool != VK_NULL_HANDLE);
-	assert(queue != VK_NULL_HANDLE);
-
-	mLogicalDevice = logicalDevice;
-	mPhysicalDevice = physicalDevice;
-	mCommandPool = commandPool;
-	mQueue = queue;
-	mFileName = fileName;
-
 	createTextureImage(properties);
 	createTextureImageView();
 	createTextureSampler();
-}
-
-// vkCmdCopyBufferToImage requires the image to be in the right layout first. This function will change the layout of an
-//  image when needed
-void VulkanTexture::transitionImageLayout(VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
-{
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(mLogicalDevice, mCommandPool);
-
-	VkImageMemoryBarrier barrier{};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = oldLayout;
-	barrier.newLayout = newLayout;
-
-	// Not using the barrier to transfer queue family ownership
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
-	// Image is not an array and does not have mipmapping levels => only 1 level and layer
-	barrier.image = mTextureImage;
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = 1;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
-
-	VkPipelineStageFlags srcStage;
-	VkPipelineStageFlags dstStage;
-
-	// Specify which types of operations involve the resource must happen before the barrier,
-	//  and which operations that involve the resource must wait on the barrier
-	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	}
-	else
-	{
-		throw std::runtime_error("Unsupported layout transition!");
-	}
-
-	vkCmdPipelineBarrier(
-		commandBuffer,
-		srcStage, dstStage,
-		0,
-		0, nullptr,
-		0, nullptr,
-		1, &barrier
-	);
-
-	endSingleTimeCommands(mLogicalDevice, mCommandPool, mQueue, commandBuffer);
 }
 
 void VulkanTexture::copyBufferToImage(VkBuffer buffer)
@@ -129,7 +60,7 @@ void VulkanTexture::copyBufferToImage(VkBuffer buffer)
 	vkCmdCopyBufferToImage(
 		commandBuffer,
 		buffer,
-		mTextureImage,
+		mImage,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1,
 		&region
@@ -178,26 +109,16 @@ void VulkanTexture::createTextureImage(VkMemoryPropertyFlags properties)
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageInfo.flags = 0;
 
-	if (vkCreateImage(mLogicalDevice, &imageInfo, nullptr, &mTextureImage) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create image!");
-	}
+	createImage(imageInfo);
 
 	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(mLogicalDevice, mTextureImage, &memRequirements);
+	vkGetImageMemoryRequirements(mLogicalDevice, mImage, &memRequirements);
 
-	VkMemoryAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(mPhysicalDevice, memRequirements.memoryTypeBits, properties);
+	allocateMemory(memRequirements, properties);
 
-	if (vkAllocateMemory(mLogicalDevice, &allocInfo, nullptr, &mTextureImageMemory) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to allocate image memory!");
-	}
+	vkBindImageMemory(mLogicalDevice, mImage, mMemoryHandle, 0);
 
-	vkBindImageMemory(mLogicalDevice, mTextureImage, mTextureImageMemory, 0);
-
+	// vkCmdCopyBufferToImage requires the image to be in the right layout first.
 	transitionImageLayout(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	copyBufferToImage(stagingBuffer.getBufferHandle());
 
@@ -206,7 +127,7 @@ void VulkanTexture::createTextureImage(VkMemoryPropertyFlags properties)
 
 void VulkanTexture::createTextureImageView()
 {
-	mTextureImageView = createImageView(mLogicalDevice, mTextureImage, VK_FORMAT_R8G8B8A8_SRGB);
+	mImageView = createImageView(mLogicalDevice, mImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 void VulkanTexture::createTextureSampler()
@@ -225,7 +146,7 @@ void VulkanTexture::createTextureSampler()
 	// Enable/Disable anisotropic filtering. Performance hit.
 	samplerInfo.anisotropyEnable = VK_TRUE;
 
-	// Query and use the maximum amount of texels calculate the final color. Hardeware dependent.
+	// Query and use the maximum amount of texels calculate the final color. Hardware dependent.
 	VkPhysicalDeviceProperties properties{};
 	vkGetPhysicalDeviceProperties(mPhysicalDevice, &properties);
 	samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;

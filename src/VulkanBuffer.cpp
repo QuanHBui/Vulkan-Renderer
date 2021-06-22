@@ -1,6 +1,5 @@
 #include "VulkanBuffer.h"
 
-#include <cassert>
 #include <iostream>
 #include <stdexcept>
 
@@ -43,14 +42,8 @@ VulkanBuffer::VulkanBuffer(
 	VkDeviceSize size,
 	VkBufferUsageFlags usage,
 	VkMemoryPropertyFlags properties)
+	: VulkanBaseObject(physicalDevice, logicalDevice)
 {
-	// A logical device and physical device must be created prior to create a buffer
-	assert(logicalDevice != VK_NULL_HANDLE);
-	assert(physicalDevice != VK_NULL_HANDLE);
-
-	mLogicalDevice = logicalDevice;
-	mPhysicalDevice = physicalDevice;
-
 	//============================ Create a buffer object ============================
 	VkBufferCreateInfo bufferInfo{};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -66,32 +59,23 @@ VulkanBuffer::VulkanBuffer(
 	VkMemoryRequirements memRequirements;
 	vkGetBufferMemoryRequirements(logicalDevice, mBuffer, &memRequirements);
 
-	//========================== Allocate memory on the GPU ==========================
-	VkMemoryAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(
-		mPhysicalDevice, memRequirements.memoryTypeBits, properties);
-
-	if (vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mBufferMemory) != VK_SUCCESS) {
-		throw std::runtime_error("[ERROR] Failed to allocate buffer memory!");
-	}
+	allocateMemory(memRequirements, properties);
 
 	// Associate the memory with the buffer
-	vkBindBufferMemory(logicalDevice, mBuffer, mBufferMemory, 0);
+	vkBindBufferMemory(logicalDevice, mBuffer, mMemoryHandle, 0);
 }
 
 void VulkanBuffer::uploadData(void *data, VkDeviceSize size)
 {
 	void *pMappedMemory = nullptr;
 
-	vkMapMemory(mLogicalDevice, mBufferMemory, 0, size, 0, &pMappedMemory);
+	vkMapMemory(mLogicalDevice, mMemoryHandle, 0, size, 0, &pMappedMemory);
 	memcpy(pMappedMemory, data, static_cast<size_t>(size));
-	vkUnmapMemory(mLogicalDevice, mBufferMemory);
+	vkUnmapMemory(mLogicalDevice, mMemoryHandle);
 }
 
 void VulkanBuffer::cleanUp()
 {
 	vkDestroyBuffer(mLogicalDevice, mBuffer, nullptr);
-	vkFreeMemory(mLogicalDevice, mBufferMemory, nullptr);
+	vkFreeMemory(mLogicalDevice, mMemoryHandle, nullptr);
 }

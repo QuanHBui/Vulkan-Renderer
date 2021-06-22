@@ -34,7 +34,7 @@ std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescription
 	// Position attibute
 	attributeDescriptions[0].binding = 0;  // Which binding per-vertex data from
 	attributeDescriptions[0].location = 0; // location directive specified in vertex shader
-	attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT; // vec3 format. Vulkan uses the same enumeration as color format for some reason
+	attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT; // vec3 format. Vulkan uses the same enumeration as color format for some reason
 	attributeDescriptions[0].offset = offsetof(Vertex, position);
 
 	// Color attribute

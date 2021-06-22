@@ -3,16 +3,7 @@
 #ifndef VULKAN_BUFFER_H
 #define VULKAN_BUFFER_H
 
-#include <vulkan/vulkan.h>
-
-class VulkanBaseObject
-{
-protected:
-	uint32_t findMemoryType(VkPhysicalDevice const &, uint32_t, VkMemoryPropertyFlags);
-
-	VkDevice mLogicalDevice = VK_NULL_HANDLE;
-	VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
-};
+#include "VulkanBaseObject.h"
 
 /**
  * A generic vulkan buffer, it can be any buffer depending on the passed
@@ -38,11 +29,9 @@ public:
 	void cleanUp();
 
 	VkBuffer getBufferHandle() const { return mBuffer; }
-	VkDeviceMemory getBufferMemory() const { return mBufferMemory; }
 
 private:
 	VkBuffer mBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory mBufferMemory = VK_NULL_HANDLE;
 };
 
 #endif // VULKAN_BUFFER_H

@@ -36,4 +36,30 @@ namespace vkutils
 			pFunc(instance, debugMessenger, pAllocator);
 		}
 	}
+
+	VkFormat findSupportedFormat(
+		VkPhysicalDevice physicalDevice,
+		const std::vector<VkFormat> &candidates,
+		VkImageTiling requestTiling,
+		VkFormatFeatureFlags requestFeatures)
+	{
+		for (VkFormat format : candidates)
+		{
+			VkFormatProperties properties;
+			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
+
+			if (requestTiling == VK_IMAGE_TILING_LINEAR
+				&& (properties.linearTilingFeatures & requestFeatures) == requestFeatures)
+			{
+				return format;
+			}
+			else if (requestTiling == VK_IMAGE_TILING_OPTIMAL
+				&& (properties.optimalTilingFeatures & requestFeatures) == requestFeatures)
+			{
+				return format;
+			}
+
+			throw std::runtime_error("Failed to find supported format");
+		}
+	}
 }

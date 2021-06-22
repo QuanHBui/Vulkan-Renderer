@@ -158,22 +158,26 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Vertex.cpp" />
     <ClCompile Include="src\VulkanBaseApplication.cpp" />
+    <ClCompile Include="src\VulkanBaseObject.cpp" />
     <ClCompile Include="src\VulkanBuffer.cpp" />
     <ClCompile Include="src\VulkanCommandBuffers.cpp" />
+    <ClCompile Include="src\VulkanDepthResources.cpp" />
     <ClCompile Include="src\VulkanDevices.cpp" />
     <ClCompile Include="src\VulkanGraphicsApplication.cpp" />
-    <ClCompile Include="src\VulkanImageView.cpp" />
+    <ClCompile Include="src\VulkanImage.cpp" />
     <ClCompile Include="src\VulkanTexture.cpp" />
     <ClCompile Include="src\VulkanUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Vertex.h" />
     <ClInclude Include="include\VulkanBaseApplication.h" />
+    <ClInclude Include="include\VulkanBaseObject.h" />
     <ClInclude Include="include\VulkanBuffer.h" />
     <ClInclude Include="include\VulkanCommandBuffers.h" />
+    <ClInclude Include="include\VulkanDepthResources.h" />
     <ClInclude Include="include\VulkanDevices.h" />
     <ClInclude Include="include\VulkanGraphicsApplication.h" />
-    <ClInclude Include="include\VulkanImageView.h" />
+    <ClInclude Include="include\VulkanImage.h" />
     <ClInclude Include="include\VulkanTexture.h" />
     <ClInclude Include="include\VulkanUtils.h" />
   </ItemGroup>

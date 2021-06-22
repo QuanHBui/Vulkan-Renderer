@@ -42,7 +42,13 @@
     <ClCompile Include="src\VulkanCommandBuffers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\VulkanImageView.cpp">
+    <ClCompile Include="src\VulkanImage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\VulkanDepthResources.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\VulkanBaseObject.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -71,7 +77,13 @@
     <ClInclude Include="include\VulkanCommandBuffers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\VulkanImageView.h">
+    <ClInclude Include="include\VulkanImage.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\VulkanDepthResources.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\VulkanBaseObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

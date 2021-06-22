@@ -5,42 +5,36 @@
 
 #include <string>
 
-#include "VulkanBuffer.h"
+#include "VulkanBaseObject.h"
+#include "VulkanImage.h"
 
 // Maybe one texture can hold multiple images?
-class VulkanTexture : public VulkanBaseObject
+class VulkanTexture : public VulkanImage
 {
 public:
 	VulkanTexture() = default;
 	VulkanTexture(std::string, VkDevice, VkPhysicalDevice, VkMemoryPropertyFlags, VkCommandPool, VkQueue);
 
-	VkImageView getTextureImageView() const { return mTextureImageView; }
+	VkImageView getTextureImageView() const { return mImageView; }
 	VkSampler getTextureSampler() const { return mTextureSampler; }
 
 	void cleanUp()
 	{
 		vkDestroySampler(mLogicalDevice, mTextureSampler, nullptr);
-		vkDestroyImageView(mLogicalDevice, mTextureImageView, nullptr);
+		vkDestroyImageView(mLogicalDevice, mImageView, nullptr);
 
-		vkDestroyImage(mLogicalDevice, mTextureImage, nullptr);
-		vkFreeMemory(mLogicalDevice, mTextureImageMemory, nullptr);
+		vkDestroyImage(mLogicalDevice, mImage, nullptr);
+		vkFreeMemory(mLogicalDevice, mMemoryHandle, nullptr);
 	}
 
 private:
-	void transitionImageLayout(VkFormat, VkImageLayout, VkImageLayout);
 	void copyBufferToImage(VkBuffer);
 	void createTextureImage(VkMemoryPropertyFlags);
 	void createTextureImageView();
 	void createTextureSampler();
 
-	VkImage mTextureImage = VK_NULL_HANDLE;
-	VkDeviceMemory mTextureImageMemory = VK_NULL_HANDLE;
 	uint32_t mWidth = 0, mHeight = 0;
 
-	VkCommandPool mCommandPool = VK_NULL_HANDLE;
-	VkQueue mQueue = VK_NULL_HANDLE;
-
-	VkImageView mTextureImageView = VK_NULL_HANDLE;
 	VkSampler mTextureSampler = VK_NULL_HANDLE;
 
 	std::string mFileName;
