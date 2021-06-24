@@ -1,14 +1,9 @@
 #include "VulkanDepthResources.h"
 
-bool hasStencilComponent(VkFormat format)
-{
-	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
-}
-
-VkAttachmentDescription VulkanDepthResources::getDepthAttachmentDescription() const
+VkAttachmentDescription VulkanDepthResources::getDepthAttachmentDescription(VkPhysicalDevice physicalDevice) const
 {
 	VkAttachmentDescription depthAttachment{};
-	depthAttachment.format = findDepthFormat();
+	depthAttachment.format = findDepthFormat(physicalDevice);
 	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -27,4 +22,31 @@ VkAttachmentReference VulkanDepthResources::getDepthAttachmentReference() const
 	depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 	return depthAttachmentReference;
+}
+
+void VulkanDepthResources::lazyInit(
+	VkPhysicalDevice physicalDevice,
+	VkDevice logicalDevice,
+	VkCommandPool commandPool,
+	VkQueue queue,
+	uint32_t swapChainWidth,
+	uint32_t swapChainHeight )
+{
+	mPhysicalDevice = physicalDevice;
+	mLogicalDevice = logicalDevice;
+	mCommandPool = commandPool;
+	mQueue = queue;
+
+	VkFormat depthFormat = findDepthFormat(mPhysicalDevice);
+
+	createImage(
+		swapChainWidth,
+		swapChainHeight,
+		depthFormat,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+	);
+
+	createPersistentImageView(VK_IMAGE_ASPECT_DEPTH_BIT);
 }

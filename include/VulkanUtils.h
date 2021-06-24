@@ -28,6 +28,8 @@ namespace vkutils
 		VkImageTiling,
 		VkFormatFeatureFlags
 	);
+
+	bool hasStencilComponent(VkFormat);
 }
 
 #endif // VULKAN_UTILS_H

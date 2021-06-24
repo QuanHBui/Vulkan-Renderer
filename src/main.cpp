@@ -620,23 +620,27 @@ private:
 		colorAttachmentRef.attachment = 0;	// Directly referenced "layout(location = 0) out vec4 outColor" directive in the fragment shader
 		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;	// We intend to use attachment as a color buffer
 
+		VkAttachmentReference depthAttachmentReference = mDepthResources.getDepthAttachmentReference();
+
 		VkSubpassDescription subpass{};
 		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &colorAttachmentRef;
+		subpass.pDepthStencilAttachment = &depthAttachmentReference;
 
 		VkSubpassDependency dependency{};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependency.dstSubpass = 0;
-		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;	// Specify which operations to wait on
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT; // Specify which operations to wait on
 		dependency.srcAccessMask = 0;
-		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
+		std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, mDepthResources.getDepthAttachmentDescription(physicalDevice) };
 		VkRenderPassCreateInfo renderPassInfo{};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = 1;
-		renderPassInfo.pAttachments = &colorAttachment;
+		renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+		renderPassInfo.pAttachments = attachments.data();
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpass;
 		renderPassInfo.dependencyCount = 1;
@@ -877,13 +881,13 @@ private:
 		VkPipelineViewportStateCreateInfo viewportState{};
 		viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewportState.viewportCount = 1;
-		viewportState.pViewports = &viewport;	// Can be a pointer to an array in the case of multiple viewports
+		viewportState.pViewports = &viewport; // Can be a pointer to an array in the case of multiple viewports
 		viewportState.scissorCount = 1;
-		viewportState.pScissors = &scissor;		// Can be a pointer to an array in the case of multiple scissor rectangles
+		viewportState.pScissors = &scissor; // Can be a pointer to an array in the case of multiple scissor rectangles
 
 		VkPipelineRasterizationStateCreateInfo rasterizer{};
 		rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		rasterizer.depthClampEnable = VK_FALSE;		// Want to discard fragments outside the near and far planes as opposed to them being clamped to the planes.
+		rasterizer.depthClampEnable = VK_FALSE; // Want to discard fragments outside the near and far planes as opposed to them being clamped to the planes.
 		rasterizer.rasterizerDiscardEnable = VK_FALSE;
 		rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterizer.lineWidth = 1.0f;
@@ -903,6 +907,14 @@ private:
 		multisampling.pSampleMask = nullptr;
 		multisampling.alphaToCoverageEnable = VK_FALSE;
 		multisampling.alphaToOneEnable = VK_FALSE;
+
+		VkPipelineDepthStencilStateCreateInfo depthStencil{};
+		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		depthStencil.depthTestEnable = VK_TRUE;
+		depthStencil.depthWriteEnable = VK_TRUE;
+		depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+		depthStencil.depthBoundsTestEnable = VK_FALSE;
+		depthStencil.stencilTestEnable = VK_FALSE;
 
 		// Configuration per attached framebuffer
 		VkPipelineColorBlendAttachmentState colorBlendAttachment{};
@@ -948,7 +960,7 @@ private:
 		pipelineInfo.pViewportState = &viewportState;
 		pipelineInfo.pRasterizationState = &rasterizer;
 		pipelineInfo.pMultisampleState = &multisampling;
-		pipelineInfo.pDepthStencilState = nullptr;
+		pipelineInfo.pDepthStencilState = &depthStencil;
 		pipelineInfo.pColorBlendState = &colorBlending;
 		pipelineInfo.pDynamicState = nullptr; // In case you want to change some values during rendering, extremely limited
 		pipelineInfo.layout = pipelineLayout;
@@ -970,15 +982,17 @@ private:
 		swapChainFramebuffers.resize(swapChainImageViews.size());
 
 		for (size_t i = 0; i < swapChainImageViews.size(); ++i) {
-			VkImageView attachments[] = {
-				swapChainImageViews[i]
+
+			std::array<VkImageView, 2> attachments = {
+				swapChainImageViews[i],
+				mDepthResources.getImageView()
 			};
 
 			VkFramebufferCreateInfo framebufferInfo{};
 			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			framebufferInfo.renderPass = renderPass;
-			framebufferInfo.attachmentCount = 1;
-			framebufferInfo.pAttachments = attachments;
+			framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+			framebufferInfo.pAttachments = attachments.data();
 			framebufferInfo.width = swapChainExtent.width;
 			framebufferInfo.height = swapChainExtent.height;
 			framebufferInfo.layers = 1;
@@ -1008,7 +1022,7 @@ private:
 
 	void createDepthResources()
 	{
-		mDepthResources = VulkanDepthResources();
+		mDepthResources.lazyInit(physicalDevice, device, commandPool, graphicsQueue, swapChainExtent.width, swapChainExtent.height);
 	}
 
 	void loadTexture(std::string imageFileName)
@@ -1152,7 +1166,7 @@ private:
 		VkCommandBufferAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = commandPool;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;	// Specify primary or secondary command buffers
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // Specify primary or secondary command buffers
 		allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
 
 		if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
@@ -1173,13 +1187,16 @@ private:
 			VkRenderPassBeginInfo renderPassInfo{};
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			renderPassInfo.renderPass = renderPass;
-			renderPassInfo.framebuffer = swapChainFramebuffers[i];	// Specify attachments to bind, the color attachment
+			renderPassInfo.framebuffer = swapChainFramebuffers[i]; // Specify attachments to bind, the color attachment
 			renderPassInfo.renderArea.offset = { 0, 0 };
 			renderPassInfo.renderArea.extent = swapChainExtent;
 
-			VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };	// Load operation for color attachment: we clear color with 100% opacity black
-			renderPassInfo.clearValueCount = 1;
-			renderPassInfo.pClearValues = &clearColor;
+			std::array<VkClearValue, 2> clearValues; 
+			clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f }; // Load operation for color attachment: we clear color with 100% opacity black
+			clearValues[1].depthStencil = { 1.0f, 0 };
+
+			renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+			renderPassInfo.pClearValues = clearValues.data();
 
 			// Our render pass commands are embedded in the primary command buffer itself. No secondary command buffers.
 			vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -1421,11 +1438,10 @@ private:
 		createDescriptorSetLayout();
 
 		createGraphicsPipeline();
+		createDepthResources();
 		createFramebuffers();
 
 		createCommandPool();
-
-		createDepthResources();
 
 		loadTexture(std::string(resource_dir) + "textures/statue.jpg");
 

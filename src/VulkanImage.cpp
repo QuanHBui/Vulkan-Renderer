@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "VulkanCommandBuffers.h"
+#include "VulkanUtils.h"
 
 VkImageView createImageView(VkDevice logicalDevice, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
 {
@@ -31,7 +32,46 @@ VkImageView createImageView(VkDevice logicalDevice, VkImage image, VkFormat form
 	return imageView;
 }
 
-void VulkanImage::transitionImageLayout(VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+void VulkanImage::createImage(
+	uint32_t width,
+	uint32_t height,
+	VkFormat format,
+	VkImageTiling tiling,
+	VkImageUsageFlags usage,
+	VkMemoryPropertyFlags properties )
+{
+	mFormat = format;
+
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = width;
+	imageInfo.extent.height = height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = format;
+	imageInfo.tiling = tiling;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = usage;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.flags = 0;
+
+	if (vkCreateImage(mLogicalDevice, &imageInfo, nullptr, &mImage) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create image!");
+	}
+
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(mLogicalDevice, mImage, &memRequirements);
+
+	allocateMemory(memRequirements, properties);
+
+	vkBindImageMemory(mLogicalDevice, mImage, mMemoryHandle, 0);
+}
+
+void VulkanImage::transitionImageLayout(VkImageLayout oldLayout, VkImageLayout newLayout)
 {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(mLogicalDevice, mCommandPool);
 
@@ -46,11 +86,24 @@ void VulkanImage::transitionImageLayout(VkFormat format, VkImageLayout oldLayout
 
 	// Image is not an array and does not have mipmapping levels => only 1 level and layer
 	barrier.image = mImage;
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	barrier.subresourceRange.baseMipLevel = 0;
 	barrier.subresourceRange.levelCount = 1;
 	barrier.subresourceRange.baseArrayLayer = 0;
 	barrier.subresourceRange.layerCount = 1;
+
+	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+	{
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+		if (vkutils::hasStencilComponent(mFormat))
+		{
+			barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+	}
+	else
+	{
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	}
 
 	VkPipelineStageFlags srcStage;
 	VkPipelineStageFlags dstStage;
@@ -72,6 +125,15 @@ void VulkanImage::transitionImageLayout(VkFormat format, VkImageLayout oldLayout
 
 		srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+	// For depth and stencil buffers
+	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+	{
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+		srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 	}
 	else
 	{

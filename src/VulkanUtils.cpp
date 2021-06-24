@@ -61,5 +61,13 @@ namespace vkutils
 
 			throw std::runtime_error("Failed to find supported format");
 		}
+
+		// Some control flow issue here: Not all paths return a value. Throwing an exception as an else
+		//  case seems a bit weird.
+	}
+
+	bool hasStencilComponent(VkFormat format)
+	{
+		return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 	}
 }

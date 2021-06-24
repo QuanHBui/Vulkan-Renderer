@@ -18,19 +18,21 @@ public:
 	VulkanImage(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkCommandPool commandPool, VkQueue queue)
 		: VulkanBaseObject(physicalDevice, logicalDevice), mCommandPool(commandPool), mQueue(queue) {};
 
-	void createImage(VkImageCreateInfo imageInfo)
-	{
-		if (vkCreateImage(mLogicalDevice, &imageInfo, nullptr, &mImage) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create image!");
-		}
-	}
-
-	void transitionImageLayout(VkFormat, VkImageLayout, VkImageLayout);
+	VkImageView getImageView() const { return mImageView; }
 
 protected:
+	void createImage(uint32_t, uint32_t, VkFormat, VkImageTiling, VkImageUsageFlags, VkMemoryPropertyFlags);
+
+	void createPersistentImageView(VkImageAspectFlags aspectFlags)
+	{
+		mImageView = createImageView(mLogicalDevice, mImage, mFormat, aspectFlags);
+	}
+
+	void transitionImageLayout(VkImageLayout, VkImageLayout);
+
 	VkImage mImage = VK_NULL_HANDLE;
 	VkImageView mImageView = VK_NULL_HANDLE;
+	VkFormat mFormat = VK_FORMAT_UNDEFINED;
 
 	VkCommandPool mCommandPool = VK_NULL_HANDLE;
 	VkQueue mQueue = VK_NULL_HANDLE;
