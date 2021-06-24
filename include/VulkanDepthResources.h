@@ -28,6 +28,13 @@ public:
 
 	void lazyInit(VkPhysicalDevice, VkDevice, VkCommandPool, VkQueue, uint32_t, uint32_t);
 
+	void cleanUp()
+	{
+		vkDestroyImageView(mLogicalDevice, mImageView, nullptr);
+		vkDestroyImage(mLogicalDevice, mImage, nullptr);
+		vkFreeMemory(mLogicalDevice, mMemoryHandle, nullptr);
+	}
+
 private:
 	VkFormat findDepthFormat(VkPhysicalDevice physicalDevice) const
 	{

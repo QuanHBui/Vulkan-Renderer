@@ -1365,6 +1365,8 @@ private:
 
 	void cleanupSwapChain()
 	{
+		mDepthResources.cleanUp();
+
 		for (VkFramebuffer &framebuffer : swapChainFramebuffers) {
 			vkDestroyFramebuffer(device, framebuffer, nullptr);
 		}
@@ -1417,6 +1419,7 @@ private:
 		createRenderPass(); // Render pass is dependent on the format of swap chain image. However, it's rare that image format would change during window resize
 
 		createGraphicsPipeline(); // Viewport and scissor rectangle size are specified during graphics pipeline creation
+		createDepthResources();
 		createFramebuffers();
 		createUniformBuffers();
 		createDescriptorPool();
