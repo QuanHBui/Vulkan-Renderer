@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "Mesh.h"
 #include "Vertex.h"
 #include "VulkanBaseApplication.h"
 #include "VulkanBuffer.h"
@@ -53,8 +54,8 @@ const std::vector<const char *> deviceExtensions = {
  */
 struct QueueFamilyIndices
 {
-	std::optional<uint32_t> graphicsFamily;	// Drawing commands
-	std::optional<uint32_t> presentFamily;	// Presenting commands
+	std::optional<uint32_t> graphicsFamily; // Drawing commands
+	std::optional<uint32_t> presentFamily; // Presenting commands
 
 	bool isComplete()
 	{
@@ -82,6 +83,8 @@ struct UniformBufferObject
 	glm::mat4 proj;
 };
 
+/*
+
 // This is our triangle vertex data
 const std::vector<Vertex> vertices = {
 	{ { -0.5f, -0.5f,  0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
@@ -101,6 +104,8 @@ const std::vector<uint16_t> indices = {
 	0, 1, 2, 2, 3, 0,
 	4, 5, 6, 6, 7, 4
 };
+
+*/
 
 class HelloTriangleApplication
 {
@@ -1025,9 +1030,14 @@ private:
 		mDepthResources.lazyInit(physicalDevice, device, commandPool, graphicsQueue, swapChainExtent.width, swapChainExtent.height);
 	}
 
-	void loadTexture(std::string imageFileName)
+	void loadTexture(std::string textureDir)
 	{
-		mTexture = VulkanTexture(imageFileName, device, physicalDevice, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, commandPool, graphicsQueue);
+		mTexture.lazyInit(textureDir, physicalDevice, device, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, commandPool, graphicsQueue);
+	}
+
+	void loadModel(std::string modelDir)
+	{
+		mMesh.lazyInit(modelDir, physicalDevice, device);
 	}
 
 	/**
@@ -1062,6 +1072,8 @@ private:
 	 */
 	void createVertexBuffer()
 	{
+		std::vector<Vertex> vertices = mMesh.getVertices();
+
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 		/* To create our staging buffer, we request to use a memory heap that
@@ -1102,6 +1114,8 @@ private:
 
 	void createIndexBuffer()
 	{
+		std::vector<uint32_t> indices = mMesh.getIndices();
+
 		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
 		VulkanBuffer stagingBuffer{
@@ -1209,7 +1223,7 @@ private:
 				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
 				// Bind index buffer
-				vkCmdBindIndexBuffer(commandBuffers[i], mpIndexBuffer->getBufferHandle(), 0, VK_INDEX_TYPE_UINT16);
+				vkCmdBindIndexBuffer(commandBuffers[i], mpIndexBuffer->getBufferHandle(), 0, VK_INDEX_TYPE_UINT32);
 
 				// Bind the right descriptor set for each swap chain image to the descriptor in the shader
 				// We also specify that we bind this descriptor set to the graphics pipeline, as opposed to compute pipeline
@@ -1217,7 +1231,7 @@ private:
 					commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &mDescriptorSets[i], 0, nullptr);
 
 				// Draw using the index buffer
-				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(mMesh.getVertices().size()), 1, 0, 0, 0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -1446,7 +1460,8 @@ private:
 
 		createCommandPool();
 
-		loadTexture(std::string(resource_dir) + "textures/statue.jpg");
+		loadTexture(std::string(resource_dir) + "textures/viking_room.png");
+		loadModel(std::string(resource_dir) + "models/viking_room.obj");
 
 		createVertexBuffer();
 		createIndexBuffer();
@@ -1546,6 +1561,8 @@ private:
 	VulkanTexture mTexture;
 
 	VulkanDepthResources mDepthResources;
+
+	Mesh mMesh;
 };
 
 int main()

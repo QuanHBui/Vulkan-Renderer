@@ -26,14 +26,33 @@ namespace vkTextureUtils
 
 VulkanTexture::VulkanTexture(
 	std::string fileName,
-	VkDevice logicalDevice,
 	VkPhysicalDevice physicalDevice,
+	VkDevice logicalDevice,
 	VkMemoryPropertyFlags properties,
 	VkCommandPool commandPool,
-	VkQueue queue)
+	VkQueue queue )
 	: VulkanImage(physicalDevice, logicalDevice, commandPool, queue)
 	, mFileName(fileName)
 {
+	createTextureImage(properties);
+	createTextureImageView();
+	createTextureSampler();
+}
+
+void VulkanTexture::lazyInit(
+	std::string fileName,
+	VkPhysicalDevice physicalDevice,
+	VkDevice logicalDevice,
+	VkMemoryPropertyFlags properties,
+	VkCommandPool commandPool,
+	VkQueue queue )
+{
+	mPhysicalDevice = physicalDevice;
+	mLogicalDevice = logicalDevice;
+	mCommandPool = commandPool;
+	mQueue = queue;
+	mFileName = fileName;
+
 	createTextureImage(properties);
 	createTextureImageView();
 	createTextureSampler();

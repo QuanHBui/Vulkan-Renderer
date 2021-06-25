@@ -88,7 +88,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Quan\Documents\Visual Studio 2019\Libraries\stb;C:\Users\Quan\Documents\Repo\Vulkan-Renderer\include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glm;C:\VulkanSDK\1.2.176.1\Include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glfw-3.3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Quan\Documents\Visual Studio 2019\Libraries\tinyobjloader;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\stb;C:\Users\Quan\Documents\Repo\Vulkan-Renderer\include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glm;C:\VulkanSDK\1.2.176.1\Include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glfw-3.3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -106,7 +106,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Quan\Documents\Visual Studio 2019\Libraries\stb;C:\Users\Quan\Documents\Repo\Vulkan-Renderer\include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glm;C:\VulkanSDK\1.2.176.1\Include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glfw-3.3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Quan\Documents\Visual Studio 2019\Libraries\tinyobjloader;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\stb;C:\Users\Quan\Documents\Repo\Vulkan-Renderer\include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glm;C:\VulkanSDK\1.2.176.1\Include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glfw-3.3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -124,7 +124,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Quan\Documents\Visual Studio 2019\Libraries\stb;C:\Users\Quan\Documents\Repo\Vulkan-Renderer\include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glm;C:\VulkanSDK\1.2.176.1\Include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glfw-3.3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Quan\Documents\Visual Studio 2019\Libraries\tinyobjloader;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\stb;C:\Users\Quan\Documents\Repo\Vulkan-Renderer\include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glm;C:\VulkanSDK\1.2.176.1\Include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glfw-3.3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -142,7 +142,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Quan\Documents\Visual Studio 2019\Libraries\stb;C:\Users\Quan\Documents\Repo\Vulkan-Renderer\include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glm;C:\VulkanSDK\1.2.176.1\Include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glfw-3.3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Quan\Documents\Visual Studio 2019\Libraries\tinyobjloader;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\stb;C:\Users\Quan\Documents\Repo\Vulkan-Renderer\include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glm;C:\VulkanSDK\1.2.176.1\Include;C:\Users\Quan\Documents\Visual Studio 2019\Libraries\glfw-3.3.4.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -156,6 +156,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\Mesh.cpp" />
     <ClCompile Include="src\Vertex.cpp" />
     <ClCompile Include="src\VulkanBaseApplication.cpp" />
     <ClCompile Include="src\VulkanBaseObject.cpp" />
@@ -169,6 +170,7 @@
     <ClCompile Include="src\VulkanUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\Mesh.h" />
     <ClInclude Include="include\Vertex.h" />
     <ClInclude Include="include\VulkanBaseApplication.h" />
     <ClInclude Include="include\VulkanBaseObject.h" />

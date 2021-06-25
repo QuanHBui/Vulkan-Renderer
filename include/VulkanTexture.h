@@ -13,7 +13,9 @@ class VulkanTexture : public VulkanImage
 {
 public:
 	VulkanTexture() = default;
-	VulkanTexture(std::string, VkDevice, VkPhysicalDevice, VkMemoryPropertyFlags, VkCommandPool, VkQueue);
+	VulkanTexture(std::string, VkPhysicalDevice, VkDevice, VkMemoryPropertyFlags, VkCommandPool, VkQueue);
+
+	void lazyInit(std::string, VkPhysicalDevice, VkDevice, VkMemoryPropertyFlags, VkCommandPool, VkQueue);
 
 	VkImageView getTextureImageView() const { return mImageView; }
 	VkSampler getTextureSampler() const { return mTextureSampler; }

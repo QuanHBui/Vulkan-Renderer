@@ -10,7 +10,7 @@
  * @param: typeFilter - specify the bit field of memory types that are suitable
  */
 uint32_t VulkanBaseObject::findMemoryType(
-	VkPhysicalDevice const &physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties)
+	VkPhysicalDevice const &physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties )
 {
 	// Query info about the available types of memory
 	VkPhysicalDeviceMemoryProperties memProperties;	// We get memory types and memory heaps from this
@@ -41,28 +41,27 @@ VulkanBuffer::VulkanBuffer(
 	VkPhysicalDevice physicalDevice,
 	VkDeviceSize size,
 	VkBufferUsageFlags usage,
-	VkMemoryPropertyFlags properties)
+	VkMemoryPropertyFlags properties )
 	: VulkanBaseObject(physicalDevice, logicalDevice)
+	, mSize(size), mUsage(usage), mProperties(properties)
 {
-	//============================ Create a buffer object ============================
-	VkBufferCreateInfo bufferInfo{};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = size;
-	bufferInfo.usage = usage;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	createBuffer();
+}
 
-	if (vkCreateBuffer(logicalDevice, &bufferInfo, nullptr, &mBuffer) != VK_SUCCESS) {
-		throw std::runtime_error("[ERROR] Failed to create a buffer!");
-	}
+void VulkanBuffer::lazyInit(
+	VkDevice logicalDevice,
+	VkPhysicalDevice physicalDevice,
+	VkDeviceSize size,
+	VkBufferUsageFlags usage,
+	VkMemoryPropertyFlags properties )
+{
+	mLogicalDevice = logicalDevice;
+	mPhysicalDevice = physicalDevice;
+	mSize = size;
+	mUsage = usage;
+	mProperties = properties;
 
-	// After specifying what our buffer going to be, we need to query what requirements we need to satisfy to create it
-	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(logicalDevice, mBuffer, &memRequirements);
-
-	allocateMemory(memRequirements, properties);
-
-	// Associate the memory with the buffer
-	vkBindBufferMemory(logicalDevice, mBuffer, mMemoryHandle, 0);
+	createBuffer();
 }
 
 void VulkanBuffer::uploadData(void *data, VkDeviceSize size)
@@ -78,4 +77,27 @@ void VulkanBuffer::cleanUp()
 {
 	vkDestroyBuffer(mLogicalDevice, mBuffer, nullptr);
 	vkFreeMemory(mLogicalDevice, mMemoryHandle, nullptr);
+}
+
+void VulkanBuffer::createBuffer()
+{
+	//============================ Create a buffer object ============================
+	VkBufferCreateInfo bufferInfo{};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = mSize;
+	bufferInfo.usage = mUsage;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateBuffer(mLogicalDevice, &bufferInfo, nullptr, &mBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("[ERROR] Failed to create a buffer!");
+	}
+
+	// After specifying what our buffer going to be, we need to query what requirements we need to satisfy to create it
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(mLogicalDevice, mBuffer, &memRequirements);
+
+	allocateMemory(memRequirements, mProperties);
+
+	// Associate the memory with the buffer
+	vkBindBufferMemory(mLogicalDevice, mBuffer, mMemoryHandle, 0);
 }

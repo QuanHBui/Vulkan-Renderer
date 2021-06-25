@@ -1,5 +1,5 @@
 # Build folders
-*build/
+build/
 out/
 x64/
 
@@ -15,3 +15,7 @@ CMakeSettings.json
 
 # Spir-V binary
 .spv
+
+# Meshes and textures
+textures/
+models/
