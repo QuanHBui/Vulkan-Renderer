@@ -1,5 +1,6 @@
 #include "Mesh.h"
 
+#include <unordered_map>
 #include <stdexcept>
 
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -21,10 +22,13 @@ void Mesh::loadModel()
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
 
+	// The whole thing fails if the mtl file is not found. Kinda weird!
 	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, mModelDir.c_str()));
 	{
 		//throw std::runtime_error(warn + err);
 	}
+
+	std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 
 	for (const auto &shape : shapes)
 	{
@@ -45,8 +49,14 @@ void Mesh::loadModel()
 
 			vertex.color = { 1.0f, 1.0f, 1.0f };
 
-			mVertices.push_back(vertex);
-			mIndices.push_back(mIndices.size());
+			if (uniqueVertices.count(vertex) == 0)
+			{
+				// The currente size of the vertex buffer is the current index of an unique vertex
+				uniqueVertices[vertex] = static_cast<uint32_t>(mVertices.size());
+				mVertices.push_back(vertex);
+			}
+
+			mIndices.push_back(uniqueVertices[vertex]);
 		}
 	}
 }

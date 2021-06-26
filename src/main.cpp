@@ -83,30 +83,6 @@ struct UniformBufferObject
 	glm::mat4 proj;
 };
 
-/*
-
-// This is our triangle vertex data
-const std::vector<Vertex> vertices = {
-	{ { -0.5f, -0.5f,  0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-	{ {  0.5f, -0.5f,  0.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
-	{ {  0.5f,  0.5f,  0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-	{ { -0.5f,  0.5f,  0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
-
-	{ { -0.5f, -0.5f, -0.5f}, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-	{ {  0.5f, -0.5f, -0.5f}, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
-	{ {  0.5f,  0.5f, -0.5f}, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-	{ { -0.5f,  0.5f, -0.5f}, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } }
-};
-
-// Our triangles are drawn counterclockwise. Hopefully, we are using fewer than
-//  65535 unique vertices; that's why we are using uint16_t for now.
-const std::vector<uint16_t> indices = {
-	0, 1, 2, 2, 3, 0,
-	4, 5, 6, 6, 7, 4
-};
-
-*/
-
 class HelloTriangleApplication
 {
 public:
@@ -1231,7 +1207,7 @@ private:
 					commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &mDescriptorSets[i], 0, nullptr);
 
 				// Draw using the index buffer
-				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(mMesh.getVertices().size()), 1, 0, 0, 0);
+				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(mMesh.getIndices().size()), 1, 0, 0, 0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
 
