@@ -5,7 +5,12 @@
 #include "VulkanCommandBuffers.h"
 #include "VulkanUtils.h"
 
-VkImageView createImageView(VkDevice logicalDevice, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
+VkImageView createImageView(
+	VkDevice logicalDevice,
+	VkImage image,
+	VkFormat format,
+	VkImageAspectFlags aspectFlags,
+	uint32_t mMipLevels )
 {
 	VkImageViewCreateInfo viewInfo{};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -19,7 +24,7 @@ VkImageView createImageView(VkDevice logicalDevice, VkImage image, VkFormat form
 	//  In this case, images are used as color targets without mipmapping levels or multiple layers.
 	viewInfo.subresourceRange.aspectMask = aspectFlags;
 	viewInfo.subresourceRange.baseMipLevel = 0;
-	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.levelCount = mMipLevels;
 	viewInfo.subresourceRange.baseArrayLayer = 0;
 	viewInfo.subresourceRange.layerCount = 1;
 
@@ -35,6 +40,7 @@ VkImageView createImageView(VkDevice logicalDevice, VkImage image, VkFormat form
 void VulkanImage::createImage(
 	uint32_t width,
 	uint32_t height,
+	uint32_t mMipLevels,
 	VkFormat format,
 	VkImageTiling tiling,
 	VkImageUsageFlags usage,
@@ -48,7 +54,7 @@ void VulkanImage::createImage(
 	imageInfo.extent.width = width;
 	imageInfo.extent.height = height;
 	imageInfo.extent.depth = 1;
-	imageInfo.mipLevels = 1;
+	imageInfo.mipLevels = mMipLevels;
 	imageInfo.arrayLayers = 1;
 	imageInfo.format = format;
 	imageInfo.tiling = tiling;
@@ -71,7 +77,7 @@ void VulkanImage::createImage(
 	vkBindImageMemory(mLogicalDevice, mImage, mMemoryHandle, 0);
 }
 
-void VulkanImage::transitionImageLayout(VkImageLayout oldLayout, VkImageLayout newLayout)
+void VulkanImage::transitionImageLayout(VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mMipLevels)
 {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(mLogicalDevice, mCommandPool);
 
@@ -84,10 +90,9 @@ void VulkanImage::transitionImageLayout(VkImageLayout oldLayout, VkImageLayout n
 	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
-	// Image is not an array and does not have mipmapping levels => only 1 level and layer
 	barrier.image = mImage;
 	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.levelCount = mMipLevels;
 	barrier.subresourceRange.baseArrayLayer = 0;
 	barrier.subresourceRange.layerCount = 1;
 

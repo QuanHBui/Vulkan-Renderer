@@ -9,7 +9,7 @@
 
 #include "VulkanBaseObject.h"
 
-VkImageView createImageView(VkDevice, VkImage, VkFormat, VkImageAspectFlags);
+VkImageView createImageView(VkDevice, VkImage, VkFormat, VkImageAspectFlags, uint32_t);
 
 class VulkanImage : public VulkanBaseObject
 {
@@ -21,14 +21,14 @@ public:
 	VkImageView getImageView() const { return mImageView; }
 
 protected:
-	void createImage(uint32_t, uint32_t, VkFormat, VkImageTiling, VkImageUsageFlags, VkMemoryPropertyFlags);
+	void createImage(uint32_t, uint32_t, uint32_t, VkFormat, VkImageTiling, VkImageUsageFlags, VkMemoryPropertyFlags);
 
-	void createPersistentImageView(VkImageAspectFlags aspectFlags)
+	void createPersistentImageView(VkImageAspectFlags aspectFlags, uint32_t mipLevels)
 	{
-		mImageView = createImageView(mLogicalDevice, mImage, mFormat, aspectFlags);
+		mImageView = createImageView(mLogicalDevice, mImage, mFormat, aspectFlags, mipLevels);
 	}
 
-	void transitionImageLayout(VkImageLayout, VkImageLayout);
+	void transitionImageLayout(VkImageLayout, VkImageLayout, uint32_t);
 
 	VkImage mImage = VK_NULL_HANDLE;
 	VkImageView mImageView = VK_NULL_HANDLE;

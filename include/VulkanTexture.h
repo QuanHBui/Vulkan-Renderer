@@ -34,8 +34,9 @@ private:
 	void createTextureImage(VkMemoryPropertyFlags);
 	void createTextureImageView();
 	void createTextureSampler();
+	void generateMipmaps();
 
-	uint32_t mWidth = 0, mHeight = 0;
+	uint32_t mWidth = 0, mHeight = 0, mMipLevels = 0;
 
 	VkSampler mTextureSampler = VK_NULL_HANDLE;
 
